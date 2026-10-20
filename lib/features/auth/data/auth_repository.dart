@@ -63,7 +63,7 @@ class AuthRepository {
         throw Exception('Đăng nhập thất bại: Máy chủ phản hồi mã ${response.statusCode}');
       }
     } on DioException catch (e) {
-      final errorMessage = e.response?.data?['message'] ?? e.message;
+      final errorMessage = ApiClient.extractErrorMessage(e, 'Lỗi kết nối máy chủ');
       throw Exception('Lỗi kết nối Backend: $errorMessage');
     }
   }

@@ -34,7 +34,7 @@ class OnboardingRepository {
         throw Exception('Lỗi nộp Onboarding: ${response.statusCode}');
       }
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi hoàn thành khảo sát: $msg');
     }
   }

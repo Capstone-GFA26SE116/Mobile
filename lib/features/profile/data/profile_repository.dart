@@ -146,7 +146,7 @@ class ProfileRepository {
       }
       throw Exception('Không tạo được liên kết thanh toán');
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi thanh toán: $msg');
     }
   }
@@ -155,7 +155,7 @@ class ProfileRepository {
     try {
       await _apiClient.dio.delete(ApiEndpoints.googleCalendarDisconnect);
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi hủy liên kết Google Calendar: $msg');
     }
   }

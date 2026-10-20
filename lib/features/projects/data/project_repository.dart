@@ -39,7 +39,7 @@ class ProjectRepository {
       }
       throw Exception('Tạo dự án thất bại');
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi tạo dự án: $msg');
     }
   }
@@ -48,7 +48,7 @@ class ProjectRepository {
     try {
       await _apiClient.dio.post(ApiEndpoints.projectArchive(projectId));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi lưu trữ dự án: $msg');
     }
   }
@@ -57,7 +57,7 @@ class ProjectRepository {
     try {
       await _apiClient.dio.post(ApiEndpoints.projectRestore(projectId));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi khôi phục dự án: $msg');
     }
   }
@@ -90,7 +90,7 @@ class ProjectRepository {
       }
       throw Exception('Tạo task thất bại');
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi tạo task: $msg');
     }
   }
@@ -114,7 +114,7 @@ class ProjectRepository {
         data: data,
       );
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi cập nhật task: $msg');
     }
   }
@@ -123,7 +123,7 @@ class ProjectRepository {
     try {
       await _apiClient.dio.delete(ApiEndpoints.taskDetail(taskId));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi xóa task: $msg');
     }
   }
@@ -165,7 +165,7 @@ class ProjectRepository {
       }
       throw Exception('Tạo subtask thất bại');
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi tạo subtask: $msg');
     }
   }
@@ -177,7 +177,7 @@ class ProjectRepository {
         data: data,
       );
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi cập nhật subtask: $msg');
     }
   }
@@ -186,7 +186,7 @@ class ProjectRepository {
     try {
       await _apiClient.dio.delete(ApiEndpoints.subtaskDetail(subTaskId));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi xóa subtask: $msg');
     }
   }
@@ -230,7 +230,7 @@ class ProjectRepository {
       }
       throw Exception('Tạo milestone thất bại');
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi tạo milestone: $msg');
     }
   }
@@ -239,7 +239,7 @@ class ProjectRepository {
     try {
       await _apiClient.dio.delete(ApiEndpoints.milestoneDetail(milestoneId));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi xóa milestone: $msg');
     }
   }
@@ -275,7 +275,7 @@ class ProjectRepository {
       }
       throw Exception('Tạo khách hàng thất bại');
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Lỗi tạo khách hàng: $msg');
     }
   }

@@ -49,8 +49,8 @@ class ScheduleRepository {
       }
       throw Exception('Không nhận được đề xuất lịch');
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
-      throw Exception('Lỗi AI xếp lịch: $msg');
+      final msg = ApiClient.extractErrorMessage(e, 'Lỗi kết nối dịch vụ AI xếp lịch');
+      throw Exception(msg);
     }
   }
 
@@ -102,7 +102,7 @@ class ScheduleRepository {
         throw Exception('Duyệt đề xuất thất bại');
       }
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e, 'Duyệt đề xuất thất bại');
       throw Exception('Lỗi duyệt đề xuất: $msg');
     }
   }
@@ -111,7 +111,7 @@ class ScheduleRepository {
     try {
       await _apiClient.dio.delete(ApiEndpoints.scheduleSlotDetail(slotId));
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e, 'Hủy slot thất bại');
       throw Exception('Lỗi hủy slot: $msg');
     }
   }
@@ -125,7 +125,7 @@ class ScheduleRepository {
       }
       return 'Đã đồng bộ Google Calendar';
     } on DioException catch (e) {
-      final msg = e.response?.data?['message'] ?? e.message;
+      final msg = ApiClient.extractErrorMessage(e, 'Đồng bộ Google Calendar thất bại');
       throw Exception('Lỗi đồng bộ Google Calendar: $msg');
     }
   }

@@ -73,10 +73,30 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _showProposalSheet(proposal);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: Colors.redAccent,
+      final errorMsg = e.toString().replaceAll('Exception: ', '');
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: Colors.orangeAccent),
+              SizedBox(width: 8),
+              Text('Thông Báo AI Xếp Lịch', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(
+            errorMsg,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Đã hiểu', style: TextStyle(color: Colors.white)),
+            ),
+          ],
         ),
       );
     } finally {

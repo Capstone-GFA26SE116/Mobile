@@ -31,7 +31,8 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
   List<DomainModel> _domains = [];
   String? _selectedDomainId;
 
-  DateTime _deadline = DateTime.now().add(const Duration(days: 2));
+  DateTime _deadline = DateTime.now().add(const Duration(days: 2)).copyWith(hour: 18, minute: 0);
+  DateTime _fixedDate = DateTime.now();
   TimeOfDay _fixedStart = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _fixedEnd = const TimeOfDay(hour: 10, minute: 30);
 
@@ -61,6 +62,69 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
     }
   }
 
+  Future<void> _pickFlexibleDeadline() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _deadline.isBefore(now) ? now : _deadline,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365 * 2)),
+    );
+
+    if (pickedDate != null && mounted) {
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(hour: _deadline.hour, minute: _deadline.minute),
+      );
+
+      final hour = pickedTime?.hour ?? _deadline.hour;
+      final minute = pickedTime?.minute ?? _deadline.minute;
+
+      setState(() {
+        _deadline = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          hour,
+          minute,
+        );
+      });
+    }
+  }
+
+  Future<void> _pickFlexibleTimeOnly() async {
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _deadline.hour, minute: _deadline.minute),
+    );
+
+    if (pickedTime != null && mounted) {
+      setState(() {
+        _deadline = DateTime(
+          _deadline.year,
+          _deadline.month,
+          _deadline.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+      });
+    }
+  }
+
+  Future<void> _pickFixedDate() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _fixedDate.isBefore(now) ? now : _fixedDate,
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now.add(const Duration(days: 365)),
+    );
+
+    if (pickedDate != null && mounted) {
+      setState(() => _fixedDate = pickedDate);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _selectedDomainId == null) {
       return;
@@ -80,9 +144,25 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
         data['estimatedMinutes'] = int.tryParse(_minutesController.text.trim()) ?? 60;
         data['deadline'] = _deadline.toUtc().toIso8601String();
       } else {
-        final now = DateTime.now();
-        final start = DateTime(now.year, now.month, now.day, _fixedStart.hour, _fixedStart.minute);
-        final end = DateTime(now.year, now.month, now.day, _fixedEnd.hour, _fixedEnd.minute);
+        final start = DateTime(
+          _fixedDate.year,
+          _fixedDate.month,
+          _fixedDate.day,
+          _fixedStart.hour,
+          _fixedStart.minute,
+        );
+        final end = DateTime(
+          _fixedDate.year,
+          _fixedDate.month,
+          _fixedDate.day,
+          _fixedEnd.hour,
+          _fixedEnd.minute,
+        );
+
+        if (!end.isAfter(start)) {
+          throw Exception('Giờ kết thúc phải sau giờ bắt đầu');
+        }
+
         data['fixedStart'] = start.toUtc().toIso8601String();
         data['fixedEnd'] = end.toUtc().toIso8601String();
       }
@@ -184,53 +264,201 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                   validator: (v) => (int.tryParse(v ?? '') == null) ? 'Nhập số phút hợp lệ' : null,
                 ),
                 const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.event, color: AppColors.primary),
-                  title: const Text('Hạn chót (Deadline)', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                  subtitle: Text(
-                    '${_deadline.day}/${_deadline.month}/${_deadline.year} ${_deadline.hour}:${_deadline.minute.toString().padLeft(2, '0')}',
-                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.surfaceBorder),
                   ),
-                  trailing: const Icon(Icons.edit, size: 18, color: AppColors.textMuted),
-                  onTap: () async {
-                    final d = await showDatePicker(
-                      context: context,
-                      initialDate: _deadline,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (d != null && mounted) {
-                      setState(() => _deadline = DateTime(d.year, d.month, d.day, 18, 0));
-                    }
-                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.event_available, color: AppColors.primary, size: 16),
+                          SizedBox(width: 6),
+                          Text('Hạn chót hoàn thành (Deadline)',
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: _pickFlexibleDeadline,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${_deadline.day.toString().padLeft(2, '0')}/${_deadline.month.toString().padLeft(2, '0')}/${_deadline.year}',
+                                      style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: _pickFlexibleTimeOnly,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.primary.withOpacity(0.5)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 14, color: AppColors.accentGreen),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${_deadline.hour.toString().padLeft(2, '0')}:${_deadline.minute.toString().padLeft(2, '0')}',
+                                    style: const TextStyle(color: AppColors.accentGreen, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ] else ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Bắt đầu', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                        subtitle: Text('${_fixedStart.hour}:${_fixedStart.minute.toString().padLeft(2, '0')}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                        onTap: () async {
-                          final t = await showTimePicker(context: context, initialTime: _fixedStart);
-                          if (t != null) setState(() => _fixedStart = t);
-                        },
+                // Fixed Task: Chọn ngày + Giờ bắt đầu + Giờ kết thúc
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.calendar_month, color: AppColors.primary, size: 16),
+                          SizedBox(width: 6),
+                          Text('Ngày diễn ra sự kiện / cuộc họp',
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
                       ),
-                    ),
-                    Expanded(
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Kết thúc', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                        subtitle: Text('${_fixedEnd.hour}:${_fixedEnd.minute.toString().padLeft(2, '0')}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                        onTap: () async {
-                          final t = await showTimePicker(context: context, initialTime: _fixedEnd);
-                          if (t != null) setState(() => _fixedEnd = t);
-                        },
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: _pickFixedDate,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.surfaceBorder),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.today, size: 15, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${_fixedDate.day.toString().padLeft(2, '0')}/${_fixedDate.month.toString().padLeft(2, '0')}/${_fixedDate.year}',
+                                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              const Spacer(),
+                              const Icon(Icons.arrow_drop_down, color: AppColors.textMuted),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final t = await showTimePicker(context: context, initialTime: _fixedStart);
+                                if (t != null) setState(() => _fixedStart = t);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Giờ bắt đầu', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.access_time, size: 14, color: AppColors.primary),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '${_fixedStart.hour.toString().padLeft(2, '0')}:${_fixedStart.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final t = await showTimePicker(context: context, initialTime: _fixedEnd);
+                                if (t != null) setState(() => _fixedEnd = t);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Giờ kết thúc', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.access_time, size: 14, color: AppColors.accentGreen),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '${_fixedEnd.hour.toString().padLeft(2, '0')}:${_fixedEnd.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
               const SizedBox(height: 20),

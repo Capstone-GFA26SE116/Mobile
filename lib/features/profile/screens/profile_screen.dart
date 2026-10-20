@@ -21,6 +21,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   late bool _worksOnWeekend;
   late int _bufferMinutes;
+  TimeOfDay _workDayStart = const TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay _workDayEnd = const TimeOfDay(hour: 18, minute: 0);
+
+  TimeOfDay _parseTime(String? timeStr, TimeOfDay fallback) {
+    if (timeStr == null || timeStr.isEmpty) return fallback;
+    try {
+      final parts = timeStr.split(':');
+      if (parts.length >= 2) {
+        return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+      }
+    } catch (_) {}
+    return fallback;
+  }
 
   @override
   void initState() {
@@ -37,6 +50,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _profile = profile;
       _worksOnWeekend = profile.worksOnWeekend;
       _bufferMinutes = profile.defaultBufferMinutes;
+      _workDayStart = _parseTime(profile.workDayStart, const TimeOfDay(hour: 8, minute: 0));
+      _workDayEnd = _parseTime(profile.workDayEnd, const TimeOfDay(hour: 18, minute: 0));
       _isLoading = false;
     });
   }
@@ -93,9 +108,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_profile == null) return;
     setState(() => _isSavingSettings = true);
 
+    final startStr = '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}:00';
+    final endStr = '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}:00';
+
     final success = await _repository.updateSettings(
-      workDayStart: _profile!.workDayStart,
-      workDayEnd: _profile!.workDayEnd,
+      workDayStart: startStr,
+      workDayEnd: endStr,
       worksOnWeekend: _worksOnWeekend,
       defaultBufferMinutes: _bufferMinutes,
       reminderLeadMinutes: _profile!.reminderLeadMinutes,
@@ -760,21 +778,99 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Work hours display
+                  // Work hours interactive picker
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Khung giờ làm việc',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Khung giờ làm việc',
+                            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Chạm để đổi giờ',
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                          ),
+                        ],
                       ),
-                      Text(
-                        '${p.workDayStart.substring(0, 5)} - ${p.workDayEnd.substring(0, 5)}',
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: _workDayStart,
+                              );
+                              if (picked != null) {
+                                setState(() => _workDayStart = picked);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.primary.withOpacity(0.6)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 13, color: AppColors.primary),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}',
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6),
+                            child: Text('-', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                          ),
+                          InkWell(
+                            onTap: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime: _workDayEnd,
+                              );
+                              if (picked != null) {
+                                setState(() => _workDayEnd = picked);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.accentGreen.withOpacity(0.6)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 13, color: AppColors.accentGreen),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}',
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

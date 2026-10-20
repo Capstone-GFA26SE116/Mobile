@@ -70,23 +70,36 @@ class _CreateProjectDialogState extends State<CreateProjectDialog> {
       },
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
+      final initialTime = TimeOfDay(
+        hour: (isStart ? _startDate?.hour : _deadline?.hour) ?? (isStart ? 8 : 18),
+        minute: (isStart ? _startDate?.minute : _deadline?.minute) ?? 0,
+      );
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: initialTime,
+      );
+
+      final hour = pickedTime?.hour ?? (isStart ? 8 : 18);
+      final minute = pickedTime?.minute ?? 0;
+      final finalDateTime = DateTime(picked.year, picked.month, picked.day, hour, minute);
+
       setState(() {
         if (isStart) {
-          _startDate = picked;
+          _startDate = finalDateTime;
           if (_deadline != null && _deadline!.isBefore(_startDate!)) {
-            _deadline = _startDate!.add(const Duration(days: 1));
+            _deadline = _startDate!.add(const Duration(days: 7));
           }
         } else {
-          _deadline = picked;
+          _deadline = finalDateTime;
         }
       });
     }
   }
 
   String _formatDate(DateTime? dt) {
-    if (dt == null) return 'Chọn ngày';
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    if (dt == null) return 'Chọn ngày giờ';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _handleSubmit() async {
