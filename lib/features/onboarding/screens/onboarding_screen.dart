@@ -58,7 +58,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (_selectedDomainIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng chọn ít nhất 1 loại công việc.'),
+          content: Text('Please select at least 1 work domain.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -114,7 +114,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Thiết lập cá nhân hoá',
+          'Personalization Setup',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
@@ -130,16 +130,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildSectionCard(
-                title: '1. Khung giờ làm việc thông thường',
+                title: '1. Typical Working Hours',
                 subtitle:
-                    'AI sẽ chỉ sắp xếp công việc của bạn trong khoảng thời gian này.',
+                    'AI will only schedule your tasks within this time window.',
                 child: Column(
                   children: [
                     Row(
                       children: [
                         Expanded(
                           child: _buildTimePickerBox(
-                            label: 'Bắt đầu',
+                            label: 'Start Time',
                             time: _startTime,
                             onTap: () async {
                               final picked = await showTimePicker(
@@ -155,7 +155,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: _buildTimePickerBox(
-                            label: 'Kết thúc',
+                            label: 'End Time',
                             time: _endTime,
                             onTap: () async {
                               final picked = await showTimePicker(
@@ -174,13 +174,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text(
-                        'Làm việc cả cuối tuần (Thứ 7, CN)',
+                        'Work on weekends (Sat, Sun)',
                         style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
                         ),
                       ),
-                      activeColor: AppColors.primary,
+                      activeThumbColor: AppColors.primary,
                       value: _worksOnWeekend,
                       onChanged: (v) => setState(() => _worksOnWeekend = v),
                     ),
@@ -189,9 +189,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
               _buildSectionCard(
-                title: '2. Loại công việc thường làm',
+                title: '2. Primary Work Domains',
                 subtitle:
-                    'METANOIA sẽ học hệ số lệch thời gian (K_bias) riêng cho từng loại.',
+                    'METANOIA learns your estimation bias factor (Kbias) per domain.',
                 child: _isLoadingDomains
                     ? const Center(
                         child: Padding(
@@ -207,7 +207,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           return FilterChip(
                             label: Text(d.name),
                             selected: selected,
-                            selectedColor: AppColors.primary.withOpacity(0.2),
+                            selectedColor: AppColors.primary.withValues(alpha: 0.2),
                             checkmarkColor: AppColors.primary,
                             labelStyle: TextStyle(
                               color: selected
@@ -240,19 +240,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
               _buildSectionCard(
-                title: '3. Khung giờ năng suất cao nhất',
+                title: '3. Peak Productivity Hours',
                 subtitle:
-                    'AI sẽ ưu tiên xếp các task khó/deadline gần vào những giờ này.',
+                    'AI prioritizes challenging tasks and urgent deadlines during these hours.',
                 child: Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: List.generate(15, (index) {
-                    final hour = index + 7; // từ 7h đến 21h
+                    final hour = index + 7; // 7:00 to 21:00
                     final selected = _selectedProductiveHours.contains(hour);
                     return ChoiceChip(
                       label: Text('${hour.toString().padLeft(2, '0')}:00'),
                       selected: selected,
-                      selectedColor: AppColors.accentGreen.withOpacity(0.2),
+                      selectedColor: AppColors.accentGreen.withValues(alpha: 0.2),
                       labelStyle: TextStyle(
                         color: selected
                             ? AppColors.accentGreen
@@ -285,15 +285,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
               _buildSectionCard(
-                title: '4. Bạn có hay làm lố giờ không?',
+                title: '4. Do you frequently overrun your estimated time?',
                 subtitle:
-                    'Mức độ tự đánh giá để AI căn chỉnh hệ số K_bias ban đầu cho phù hợp.',
+                    'Self-assessment to calibrate initial Kbias factor.',
                 child: Column(
                   children: [
-                    _buildRadioOption('Hiếm khi (Rarely)', 'Rarely'),
-                    _buildRadioOption('Thỉnh thoảng (Sometimes)', 'Sometimes'),
-                    _buildRadioOption('Thường xuyên (Often)', 'Often'),
-                    _buildRadioOption('Luôn luôn (Always)', 'Always'),
+                    _buildRadioOption('Rarely', 'Rarely'),
+                    _buildRadioOption('Sometimes', 'Sometimes'),
+                    _buildRadioOption('Often', 'Often'),
+                    _buildRadioOption('Always', 'Always'),
                   ],
                 ),
               ),
@@ -318,7 +318,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       )
                     : const Text(
-                        'Hoàn tất & Vào Không gian làm việc',
+                        'Complete & Enter Workspace',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -377,17 +377,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     required TimeOfDay time,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.surfaceBorder),
-        ),
-        child: Column(
+    return Ink(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.surfaceBorder),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -415,8 +416,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildRadioOption(String label, String value) {
     final selected = _overrunLevel == value;

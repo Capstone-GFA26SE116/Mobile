@@ -27,7 +27,7 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _checkAuthState() async {
-    // 1. Kiểm tra token có lưu trữ trong local không
+    // 1. Check if token is stored in secure local storage
     final token = await _storageService.getAccessToken();
 
     if (token == null || token.isEmpty) {
@@ -39,7 +39,7 @@ class _AuthGateState extends State<AuthGate> {
       return;
     }
 
-    // 2. Kiểm tra trạng thái onboarding và tính hợp lệ của token qua /api/me
+    // 2. Verify token validity and onboarding status via /api/me
     try {
       final response = await _apiClient.dio.get(ApiEndpoints.me);
       if (response.statusCode == 200 && response.data != null) {
@@ -56,7 +56,7 @@ class _AuthGateState extends State<AuthGate> {
         return;
       }
     } catch (e) {
-      // Nếu là lỗi 401 Unauthorized: token hết hạn -> xóa token và về Login
+      // 401 Unauthorized: token expired -> clear tokens and route to Login
       if (e.toString().contains('401')) {
         await _storageService.clearTokens();
         if (mounted) {
@@ -67,7 +67,7 @@ class _AuthGateState extends State<AuthGate> {
         return;
       }
 
-      // Nếu lỗi mạng / offline: cho vào MainShell
+      // Network error / offline fallback: navigate to MainShell
       if (mounted) {
         setState(() {
           _targetScreen = const MainShellScreen();
@@ -89,7 +89,7 @@ class _AuthGateState extends State<AuthGate> {
       return _targetScreen!;
     }
 
-    // Splash screen hiển thị trong lúc kiểm tra phiên đăng nhập
+    // Splash screen while validating session
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
@@ -104,7 +104,7 @@ class _AuthGateState extends State<AuthGate> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.4),
+                    color: AppColors.primary.withValues(alpha: 0.4),
                     blurRadius: 20,
                     offset: const Offset(0, 4),
                   ),

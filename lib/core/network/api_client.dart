@@ -2,10 +2,10 @@ import 'package:dio/dio.dart';
 import '../services/storage_service.dart';
 
 class ApiClient {
-  // Thay đổi sang true nếu muốn kết nối với Backend chạy cục bộ trên máy tính (localhost:5036 / 10.0.2.2:5036)
+  // Toggle to true if connecting to local backend server (localhost:5036 / 10.0.2.2:5036)
   static const bool useLocalServer = false;
   static const String onlineServerUrl = 'http://metanoia.runasp.net';
-  static const String localServerUrl = 'http://10.0.2.2:5036'; // Cho Android Emulator
+  static const String localServerUrl = 'http://10.0.2.2:5036'; // Android Emulator alias
 
   static String get baseUrl => useLocalServer ? localServerUrl : onlineServerUrl;
 
@@ -29,7 +29,7 @@ class ApiClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          // Tự động gắn Bearer Token nếu đã có trong storage
+          // Automatically attach Bearer token if present in storage
           final token = await _storageService.getAccessToken();
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] =
@@ -38,15 +38,15 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) {
-          // Xử lý lỗi tập trung
+          // Centralized error handling
           return handler.next(e);
         },
       ),
     );
   }
 
-  /// Trích xuất thông báo lỗi an toàn, tuyệt đối không gây ra lỗi "type 'String' is not a subtype of type 'int' of 'index'"
-  static String extractErrorMessage(dynamic error, [String fallback = 'Đã có lỗi xảy ra']) {
+  /// Safe error message extraction, ensuring clean, human-readable strings
+  static String extractErrorMessage(dynamic error, [String fallback = 'An unexpected error occurred. Please try again.']) {
     if (error is DioException) {
       final responseData = error.response?.data;
       if (responseData is Map) {
@@ -56,7 +56,7 @@ class ApiClient {
       } else if (responseData is String && responseData.isNotEmpty) {
         if (responseData.contains('<html') || responseData.contains('<!DOCTYPE')) {
           final code = error.response?.statusCode ?? 500;
-          return 'Máy chủ phản hồi mã lỗi $code. Vui lòng thử lại sau.';
+          return 'Server returned status code $code. Please try again later.';
         }
         return responseData;
       }

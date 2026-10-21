@@ -64,25 +64,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Đổi họ và tên', style: TextStyle(color: AppColors.textPrimary)),
+        title: const Text('Edit Full Name', style: TextStyle(color: AppColors.textPrimary)),
         content: TextField(
           controller: nameCtrl,
           autofocus: true,
           style: const TextStyle(color: AppColors.textPrimary),
           decoration: const InputDecoration(
-            labelText: 'Họ và tên hiển thị',
+            labelText: 'Display Name',
             labelStyle: TextStyle(color: AppColors.textSecondary),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Lưu', style: TextStyle(color: Colors.white)),
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -95,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Đã cập nhật họ tên thành công!'),
+              content: Text('Full name updated successfully!'),
               backgroundColor: AppColors.accentGreen,
             ),
           );
@@ -126,8 +126,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       SnackBar(
         content: Text(
           success
-              ? 'Đã cập nhật cài đặt nhịp sinh học thành công!'
-              : 'Đã lưu cài đặt cục bộ.',
+              ? 'Circadian & buffer settings updated successfully!'
+              : 'Settings saved locally.',
         ),
         backgroundColor: AppColors.accentGreen,
         behavior: SnackBarBehavior.floating,
@@ -139,7 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (plan.priceVnd == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Gói Starter đang hoạt động sẵn.'),
+          content: Text('Starter plan is already active.'),
           backgroundColor: AppColors.primary,
         ),
       );
@@ -187,15 +187,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Thanh toán PayOS', style: TextStyle(color: AppColors.textPrimary)),
+        title: const Text('PayOS Checkout', style: TextStyle(color: AppColors.textPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Mã đơn hàng: #${checkout.orderCode}',
+            Text('Order Code: #${checkout.orderCode}',
                 style: const TextStyle(color: AppColors.accentGreen, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Trạng thái: ${checkout.status}',
+            Text('Status: ${checkout.status}',
                 style: const TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 12),
             if (checkout.checkoutUrl != null)
@@ -204,7 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   launchUrl(Uri.parse(checkout.checkoutUrl!), mode: LaunchMode.externalApplication);
                 },
                 icon: const Icon(Icons.open_in_browser, size: 16),
-                label: const Text('Mở Cổng Thanh Toán PayOS'),
+                label: const Text('Open PayOS Payment Gateway'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -215,7 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Close', style: TextStyle(color: AppColors.textSecondary)),
           ),
         ],
       ),
@@ -230,20 +230,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppColors.surface,
-          title: const Text('Hủy liên kết Google Calendar', style: TextStyle(color: AppColors.textPrimary)),
+          title: const Text('Disconnect Google Calendar', style: TextStyle(color: AppColors.textPrimary)),
           content: const Text(
-            'Hệ thống sẽ ngừng đồng bộ hai chiều lịch trình và các sự kiện Google Calendar.',
+            'Two-way synchronization between your schedule and Google Calendar events will be stopped.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Không', style: TextStyle(color: AppColors.textSecondary)),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              child: const Text('Hủy liên kết', style: TextStyle(color: Colors.white)),
+              child: const Text('Disconnect', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -256,7 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Đã hủy liên kết Google Calendar.'),
+                content: Text('Google Calendar disconnected.'),
                 backgroundColor: AppColors.primary,
               ),
             );
@@ -283,7 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Tài khoản đã đăng nhập qua Google Auth và sẵn sàng kết nối.'),
+              content: Text('Google account authenticated and ready to sync.'),
               backgroundColor: AppColors.primary,
             ),
           );
@@ -327,7 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const Text(
-                    'Bảng Giá & Gói Đăng Ký',
+                    'Subscription Plans & Pricing',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.textPrimary,
@@ -337,7 +337,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Mở khóa toàn bộ sức mạnh tối ưu hóa nhận thức & AI Engine',
+                    'Unlock the full power of cognitive optimization & AI Engine',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
@@ -355,14 +355,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildPlanItem(SubscriptionPlanItem plan) {
     final isPro = plan.code == 'PRO';
     final priceStr = plan.priceVnd == 0
-        ? 'Miễn phí'
-        : '${(plan.priceVnd / 1000).toStringAsFixed(0)}.000đ / ${plan.billingCycle}';
+        ? 'Free'
+        : '${(plan.priceVnd / 1000).toStringAsFixed(0)},000 VND / ${plan.billingCycle}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isPro ? AppColors.primary.withOpacity(0.08) : AppColors.cardBackground,
+        color: isPro ? AppColors.primary.withValues(alpha: 0.08) : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isPro ? AppColors.primary : AppColors.surfaceBorder,
@@ -391,7 +391,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
-                    'Phổ biến nhất',
+                    'Most Popular',
                     style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -445,7 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: Text(
-                plan.priceVnd == 0 ? 'Đang kích hoạt' : 'Nâng cấp qua PayOS',
+                plan.priceVnd == 0 ? 'Current Plan' : 'Upgrade via PayOS',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
@@ -461,17 +461,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: const Text(
-          'Đăng xuất',
+          'Log Out',
           style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: const Text(
-          'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản Metanoia?',
+          'Are you sure you want to log out of your Metanoia account?',
           style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -479,7 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               backgroundColor: Colors.redAccent.shade700,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Đăng xuất'),
+            child: const Text('Log Out'),
           ),
         ],
       ),
@@ -518,7 +518,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: const Text(
-          'Hồ Sơ & Cài Đặt',
+          'Profile & Settings',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
@@ -590,7 +590,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.15),
+                            color: AppColors.primary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -629,7 +629,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Icon(Icons.workspace_premium, color: Colors.amber, size: 20),
                           SizedBox(width: 8),
                           Text(
-                            'Gói Dịch Vụ',
+                            'Subscription Plan',
                             style: TextStyle(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
@@ -641,7 +641,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.accentGreen.withOpacity(0.15),
+                          color: AppColors.accentGreen.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -657,14 +657,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    'Truy cập đầy đủ tính năng lập lịch tự động, AI Copilot, và thuật toán chống ảo tưởng thời gian Kbias.',
+                    'Access automated scheduling, AI Copilot, and cognitive planning bias correction.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _showSubscriptionPlansSheet,
                     icon: const Icon(Icons.arrow_upward, size: 15, color: AppColors.primary),
-                    label: const Text('Xem các gói & Nâng cấp qua PayOS'),
+                    label: const Text('View Plans & Upgrade via PayOS'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
@@ -713,8 +713,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(height: 2),
                             Text(
                               p.googleCalendarStatus == 'Active'
-                                  ? 'Đang đồng bộ hai chiều thời gian thực'
-                                  : 'Chưa liên kết tài khoản lịch',
+                                  ? 'Active real-time 2-way sync'
+                                  : 'Not connected',
                               style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                             ),
                           ],
@@ -740,14 +740,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: p.googleCalendarStatus == 'Active' ? Colors.redAccent : AppColors.primary,
                         side: BorderSide(
-                          color: p.googleCalendarStatus == 'Active' ? Colors.redAccent.withOpacity(0.4) : AppColors.primary,
+                          color: p.googleCalendarStatus == 'Active' ? Colors.redAccent.withValues(alpha: 0.4) : AppColors.primary,
                         ),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       child: Text(
                         p.googleCalendarStatus == 'Active'
-                            ? 'Hủy liên kết Google Calendar'
-                            : 'Kết nối Google Calendar',
+                            ? 'Disconnect Google Calendar'
+                            : 'Connect Google Calendar',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -769,7 +769,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Cài Đặt Nhịp Sinh Học & Đệm Nghỉ',
+                    'Circadian Rhythm & Buffer Settings',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -786,49 +786,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Khung giờ làm việc',
+                            'Working Hours',
                             style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Chạm để đổi giờ',
+                            'Tap to change',
                             style: TextStyle(color: AppColors.textMuted, fontSize: 11),
                           ),
                         ],
                       ),
                       Row(
                         children: [
-                          InkWell(
-                            onTap: () async {
-                              final picked = await showTimePicker(
-                                context: context,
-                                initialTime: _workDayStart,
-                              );
-                              if (picked != null) {
-                                setState(() => _workDayStart = picked);
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.primary.withOpacity(0.6)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.access_time, size: 13, color: AppColors.primary),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}',
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
+                          Ink(
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.6)),
+                            ),
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: _workDayStart,
+                                );
+                                if (picked != null) {
+                                  setState(() => _workDayStart = picked);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.access_time, size: 13, color: AppColors.primary),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}',
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -836,37 +838,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             padding: EdgeInsets.symmetric(horizontal: 6),
                             child: Text('-', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
                           ),
-                          InkWell(
-                            onTap: () async {
-                              final picked = await showTimePicker(
-                                context: context,
-                                initialTime: _workDayEnd,
-                              );
-                              if (picked != null) {
-                                setState(() => _workDayEnd = picked);
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.accentGreen.withOpacity(0.6)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.access_time, size: 13, color: AppColors.accentGreen),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}',
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
+                          Ink(
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.6)),
+                            ),
+                            child: InkWell(
+                              onTap: () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: _workDayEnd,
+                                );
+                                if (picked != null) {
+                                  setState(() => _workDayEnd = picked);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.access_time, size: 13, color: AppColors.accentGreen),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}',
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -881,7 +885,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Đệm nghỉ phục hồi (phút)',
+                        'Rest Buffer (minutes)',
                         style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                       ),
                       DropdownButton<int>(
@@ -893,11 +897,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                         items: const [
-                          DropdownMenuItem(value: 5, child: Text('5 phút')),
-                          DropdownMenuItem(value: 10, child: Text('10 phút')),
-                          DropdownMenuItem(value: 15, child: Text('15 phút')),
-                          DropdownMenuItem(value: 20, child: Text('20 phút')),
-                          DropdownMenuItem(value: 30, child: Text('30 phút')),
+                          DropdownMenuItem(value: 5, child: Text('5 mins')),
+                          DropdownMenuItem(value: 10, child: Text('10 mins')),
+                          DropdownMenuItem(value: 15, child: Text('15 mins')),
+                          DropdownMenuItem(value: 20, child: Text('20 mins')),
+                          DropdownMenuItem(value: 30, child: Text('30 mins')),
                         ],
                         onChanged: (val) {
                           if (val != null) {
@@ -913,11 +917,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
-                      'Cho phép xếp lịch cuối tuần',
+                      'Allow weekend scheduling',
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     ),
                     value: _worksOnWeekend,
-                    activeColor: AppColors.primary,
+                    activeThumbColor: AppColors.primary,
                     onChanged: (val) {
                       setState(() => _worksOnWeekend = val);
                     },
@@ -939,7 +943,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : const Text('Lưu Thay Đổi Cài Đặt', style: TextStyle(fontWeight: FontWeight.bold)),
+                          : const Text('Save Settings Changes', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -952,11 +956,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: _handleLogout,
               icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
               label: const Text(
-                'Đăng Xuất Khỏi Tài Khoản',
+                'Log Out',
                 style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
               ),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.redAccent.withOpacity(0.4)),
+                side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.4)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),

@@ -24,7 +24,7 @@ class ProjectRepository {
       }
       return [];
     } on DioException catch (e) {
-      throw Exception('Lỗi lấy danh sách dự án: ${e.message}');
+      throw Exception('Failed to fetch projects: ${e.message}');
     }
   }
 
@@ -37,10 +37,42 @@ class ProjectRepository {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return ProjectModel.fromJson(response.data as Map<String, dynamic>);
       }
-      throw Exception('Tạo dự án thất bại');
+      throw Exception('Failed to create project');
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi tạo dự án: $msg');
+      throw Exception('Failed to create project: $msg');
+    }
+  }
+
+  Future<ProjectModel> getProject(String projectId) async {
+    try {
+      final response = await _apiClient.dio.get(ApiEndpoints.projectDetail(projectId));
+      if (response.statusCode == 200 && response.data != null) {
+        return ProjectModel.fromJson(response.data as Map<String, dynamic>);
+      }
+      throw Exception('Project not found');
+    } on DioException catch (e) {
+      final msg = ApiClient.extractErrorMessage(e);
+      throw Exception('Failed to fetch project: $msg');
+    }
+  }
+
+  Future<ProjectModel> updateProject(String projectId, UpdateProjectRequest request) async {
+    try {
+      final response = await _apiClient.dio.put(
+        ApiEndpoints.projectDetail(projectId),
+        data: request.toJson(),
+      );
+      if (response.statusCode == 200 && response.data != null && response.data is Map) {
+        return ProjectModel.fromJson(response.data as Map<String, dynamic>);
+      } else if (response.statusCode == 200 || response.statusCode == 204) {
+        // In case API returns 204 No Content, fetch fresh project
+        return await getProject(projectId);
+      }
+      throw Exception('Failed to update project');
+    } on DioException catch (e) {
+      final msg = ApiClient.extractErrorMessage(e);
+      throw Exception('Failed to update project: $msg');
     }
   }
 
@@ -49,7 +81,7 @@ class ProjectRepository {
       await _apiClient.dio.post(ApiEndpoints.projectArchive(projectId));
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi lưu trữ dự án: $msg');
+      throw Exception('Failed to archive project: $msg');
     }
   }
 
@@ -58,7 +90,7 @@ class ProjectRepository {
       await _apiClient.dio.post(ApiEndpoints.projectRestore(projectId));
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi khôi phục dự án: $msg');
+      throw Exception('Failed to restore project: $msg');
     }
   }
 
@@ -75,7 +107,7 @@ class ProjectRepository {
       }
       return [];
     } on DioException catch (e) {
-      throw Exception('Lỗi lấy danh sách công việc: ${e.message}');
+      throw Exception('Failed to fetch tasks: ${e.message}');
     }
   }
 
@@ -86,12 +118,42 @@ class ProjectRepository {
         data: data,
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return TaskModel.fromJson(response.data as Map<String, dynamic>);
+        final task = TaskModel.fromJson(response.data as Map<String, dynamic>);
+
+        // Auto-create schedule slot if task has deadline or fixedStart/fixedEnd (Frontend parity)
+        final hasDeadline = task.deadline != null;
+        final hasFixedTime = task.fixedStart != null && task.fixedEnd != null;
+        if (hasDeadline || hasFixedTime) {
+          final slotData = {
+            'subTaskId': null,
+            'startTime': (task.fixedStart ?? task.deadline ?? DateTime.now()).toUtc().toIso8601String(),
+            'endTime': (task.fixedEnd ?? task.deadline ?? DateTime.now().add(const Duration(hours: 1))).toUtc().toIso8601String(),
+            'originalStartTime': task.deadline?.toUtc().toIso8601String(),
+            'isManualOverride': false,
+            'kbiasUsed': 0,
+            'explanation': 'Auto-scheduled from task creation',
+            'status': 'scheduled',
+          };
+          createScheduleSlot(task.id, slotData);
+        }
+
+        return task;
       }
-      throw Exception('Tạo task thất bại');
+      throw Exception('Failed to create task');
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi tạo task: $msg');
+      throw Exception('Failed to create task: $msg');
+    }
+  }
+
+  Future<void> createScheduleSlot(String taskId, Map<String, dynamic> data) async {
+    try {
+      await _apiClient.dio.post(
+        ApiEndpoints.taskScheduleSlots(taskId),
+        data: data,
+      );
+    } catch (_) {
+      // Ignored if auto-schedule fails
     }
   }
 
@@ -115,7 +177,7 @@ class ProjectRepository {
       );
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi cập nhật task: $msg');
+      throw Exception('Failed to update task: $msg');
     }
   }
 
@@ -124,7 +186,7 @@ class ProjectRepository {
       await _apiClient.dio.delete(ApiEndpoints.taskDetail(taskId));
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi xóa task: $msg');
+      throw Exception('Failed to delete task: $msg');
     }
   }
 
@@ -163,10 +225,10 @@ class ProjectRepository {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return SubTaskModel.fromJson(response.data as Map<String, dynamic>);
       }
-      throw Exception('Tạo subtask thất bại');
+      throw Exception('Failed to create subtask');
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi tạo subtask: $msg');
+      throw Exception('Failed to create subtask: $msg');
     }
   }
 
@@ -178,7 +240,7 @@ class ProjectRepository {
       );
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi cập nhật subtask: $msg');
+      throw Exception('Failed to update subtask: $msg');
     }
   }
 
@@ -187,7 +249,7 @@ class ProjectRepository {
       await _apiClient.dio.delete(ApiEndpoints.subtaskDetail(subTaskId));
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi xóa subtask: $msg');
+      throw Exception('Failed to delete subtask: $msg');
     }
   }
 
@@ -210,28 +272,49 @@ class ProjectRepository {
 
   Future<MilestoneModel> createMilestone(
     String projectId,
-    String name,
-    int orderIndex,
-    String? dueDate,
+    CreateMilestoneRequest request,
   ) async {
     try {
       final response = await _apiClient.dio.post(
         ApiEndpoints.projectMilestones(projectId),
-        data: {
-          'name': name,
-          'orderIndex': orderIndex,
-          if (dueDate != null && dueDate.isNotEmpty) 'dueDate': dueDate,
-          'status': 'Pending',
-          'revisionCount': 0,
-        },
+        data: request.toJson(),
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
         return MilestoneModel.fromJson(response.data as Map<String, dynamic>);
       }
-      throw Exception('Tạo milestone thất bại');
+      throw Exception('Failed to create milestone');
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi tạo milestone: $msg');
+      throw Exception('Failed to create milestone: $msg');
+    }
+  }
+
+  Future<MilestoneModel> updateMilestone(
+    String milestoneId,
+    UpdateMilestoneRequest request,
+  ) async {
+    try {
+      final response = await _apiClient.dio.put(
+        ApiEndpoints.milestoneDetail(milestoneId),
+        data: request.toJson(),
+      );
+      if (response.statusCode == 200 && response.data != null && response.data is Map) {
+        return MilestoneModel.fromJson(response.data as Map<String, dynamic>);
+      } else if (response.statusCode == 200 || response.statusCode == 204) {
+        return MilestoneModel(
+          id: milestoneId,
+          projectId: '',
+          name: request.name,
+          orderIndex: request.orderIndex,
+          dueDate: request.dueDate,
+          status: request.status,
+          revisionCount: request.revisionCount,
+        );
+      }
+      throw Exception('Failed to update milestone');
+    } on DioException catch (e) {
+      final msg = ApiClient.extractErrorMessage(e);
+      throw Exception('Failed to update milestone: $msg');
     }
   }
 
@@ -240,7 +323,7 @@ class ProjectRepository {
       await _apiClient.dio.delete(ApiEndpoints.milestoneDetail(milestoneId));
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi xóa milestone: $msg');
+      throw Exception('Failed to delete milestone: $msg');
     }
   }
 
@@ -273,10 +356,10 @@ class ProjectRepository {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return ClientModel.fromJson(response.data as Map<String, dynamic>);
       }
-      throw Exception('Tạo khách hàng thất bại');
+      throw Exception('Failed to create client');
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi tạo khách hàng: $msg');
+      throw Exception('Failed to create client: $msg');
     }
   }
 }

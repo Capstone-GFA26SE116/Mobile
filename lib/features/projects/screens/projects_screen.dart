@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/status_badge.dart';
 import '../data/project_repository.dart';
 import '../models/project_models.dart';
 import 'create_project_dialog.dart';
@@ -15,9 +14,11 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final ProjectRepository _repository = ProjectRepository();
-  List<ProjectModel> _projects = [];
+
+  List<ProjectModel> _allProjects = [];
   bool _isLoading = true;
-  bool _showArchived = false;
+  String _searchQuery = '';
+  String _selectedFilter = 'all'; // 'all', 'active', 'pending', 'completed'
 
   @override
   void initState() {
@@ -28,10 +29,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Future<void> _loadProjects() async {
     setState(() => _isLoading = true);
     try {
-      final list = await _repository.getProjects(includeArchived: _showArchived);
+      final list = await _repository.getProjects(includeArchived: false);
       if (mounted) {
         setState(() {
-          _projects = list;
+          _allProjects = list;
           _isLoading = false;
         });
       }
@@ -40,10 +41,57 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
+  List<ProjectModel> get _filteredProjects {
+    return _allProjects.filter((p) {
+      // Status filter
+      final status = p.status.toLowerCase();
+      if (_selectedFilter == 'active' && status != 'active' && status != 'inprogress') {
+        return false;
+      }
+      if (_selectedFilter == 'pending' && status != 'pending') {
+        return false;
+      }
+      if (_selectedFilter == 'completed' && status != 'completed' && status != 'done') {
+        return false;
+      }
+
+      // Search query
+      if (_searchQuery.trim().isNotEmpty) {
+        final q = _searchQuery.toLowerCase();
+        final matchName = p.name.toLowerCase().contains(q);
+        final matchClient = (p.clientName ?? '').toLowerCase().contains(q);
+        final matchDesc = (p.description ?? '').toLowerCase().contains(q);
+        if (!matchName && !matchClient && !matchDesc) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  int get _activeCount => _allProjects
+      .where((p) => p.status.toLowerCase() == 'active' || p.status.toLowerCase() == 'inprogress')
+      .length;
+
+  int get _pendingCount =>
+      _allProjects.where((p) => p.status.toLowerCase() == 'pending').length;
+
+  int get _completedCount => _allProjects
+      .where((p) => p.status.toLowerCase() == 'completed' || p.status.toLowerCase() == 'done')
+      .length;
+
+  ProjectModel? get _nearestDeadlineProject {
+    final valid = _allProjects
+        .where((p) => p.parsedDeadline != null && p.daysLeft >= 0)
+        .toList();
+    if (valid.isEmpty) return null;
+    valid.sort((a, b) => a.daysLeft.compareTo(b.daysLeft));
+    return valid.first;
+  }
+
   Future<void> _openCreateProject() async {
     final newProject = await showDialog<ProjectModel>(
       context: context,
-      builder: (_) => const CreateProjectDialog(),
+      builder: (_) => const ProjectFormDialog(),
     );
 
     if (newProject != null) {
@@ -51,8 +99,29 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Đã tạo dự án "${newProject.name}" thành công!'),
-            backgroundColor: AppColors.accentGreen,
+            content: Text('Project "${newProject.name}" has been created!'),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openEditProject(ProjectModel project) async {
+    final updated = await showDialog<ProjectModel>(
+      context: context,
+      builder: (_) => ProjectFormDialog(project: project),
+    );
+
+    if (updated != null) {
+      _loadProjects();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Project "${updated.name}" updated successfully!'),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -66,8 +135,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Đã lưu trữ dự án "${project.name}"'),
+            content: Text('Archived project "${project.name}"'),
             backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -77,30 +147,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleRestore(ProjectModel project) async {
-    try {
-      await _repository.restoreProject(project.id);
-      _loadProjects();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã khôi phục dự án "${project.name}"'),
-            backgroundColor: AppColors.accentGreen,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -111,249 +158,733 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          'Không gian dự án',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: _showArchived ? 'Xem dự án hiện tại' : 'Xem dự án đã lưu trữ',
-            icon: Icon(
-              _showArchived ? Icons.inventory : Icons.archive_outlined,
-              color: _showArchived ? AppColors.accentGreen : AppColors.textSecondary,
-            ),
-            onPressed: () {
-              setState(() {
-                _showArchived = !_showArchived;
-              });
-              _loadProjects();
-            },
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreateProject,
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Tạo Dự Án',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Filter status bar
-            if (_showArchived)
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.withOpacity(0.3)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.archive, size: 16, color: Colors.amber),
-                    SizedBox(width: 8),
-                    Text(
-                      'Đang hiển thị danh sách dự án Đã lưu trữ',
-                      style: TextStyle(color: Colors.amber, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    )
-                  : _projects.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          backgroundColor: AppColors.surface,
+          onRefresh: _loadProjects,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              // 1. Header (Eyebrow + Title + New Project button)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Icon(
-                                _showArchived ? Icons.inventory_2_outlined : Icons.folder_open,
-                                size: 54,
-                                color: AppColors.textMuted,
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _showArchived
-                                    ? 'Không có dự án nào đã lưu trữ.'
-                                    : 'Chưa có dự án nào. Hãy tạo dự án đầu tiên!',
-                                style: const TextStyle(color: AppColors.textSecondary),
+                              const SizedBox(width: 7),
+                              const Text(
+                                'PROJECT WORKSPACE',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                ),
                               ),
                             ],
                           ),
-                        )
-                      : RefreshIndicator(
-                          color: AppColors.primary,
-                          onRefresh: _loadProjects,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.only(
-                              left: 20,
-                              right: 20,
-                              top: 8,
-                              bottom: 80,
+                          const SizedBox(height: 4),
+                          const Text(
+                            'My Projects',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
                             ),
-                            itemCount: _projects.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final p = _projects[index];
-                              return _buildProjectCard(p);
-                            },
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _openCreateProject,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.onPrimary,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text(
+                              'New project',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.surfaceBorder),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.tune, size: 18, color: AppColors.textMuted),
+                              onPressed: () {},
+                              tooltip: 'Configure AI Agent',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 2. Command Strip (Search Bar + Filter Chips)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      // Search Input
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141414),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.surfaceBorder),
+                        ),
+                        child: TextField(
+                          onChanged: (val) {
+                            setState(() => _searchQuery = val);
+                          },
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Search by project name, client, tags or goals...',
+                            hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                            prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textMuted),
+                            suffixIcon: Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: Center(
+                                widthFactor: 1,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: AppColors.surfaceBorder),
+                                  ),
+                                  child: const Text(
+                                    '⌘K',
+                                    style: TextStyle(
+                                      color: AppColors.textMuted,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
-            ),
-          ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Status Filter Chips
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildFilterChip('All', 'all', _allProjects.length),
+                            _buildFilterChip('Active', 'active', _activeCount),
+                            _buildFilterChip('Pending', 'pending', _pendingCount),
+                            _buildFilterChip('Completed', 'completed', _completedCount),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 3. 4 KPI Telemetry Cards
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = (constraints.maxWidth - 12) / 2;
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          _buildKpiCard(
+                            width: width,
+                            label: 'Active projects',
+                            value: '$_activeCount',
+                            unit: '/ ${_allProjects.length} Active',
+                            foot: '$_pendingCount projects awaiting launch',
+                            icon: Icons.account_tree_outlined,
+                            iconColor: AppColors.primary,
+                            progress: _allProjects.isEmpty
+                                ? 0.0
+                                : (_activeCount / _allProjects.length).clamp(0.0, 1.0),
+                          ),
+                          _buildKpiCard(
+                            width: width,
+                            label: 'AI Progress',
+                            value: '84%',
+                            unit: '+12%',
+                            foot: 'Auto-scheduled',
+                            icon: Icons.auto_awesome,
+                            iconColor: AppColors.primary,
+                            progress: 0.84,
+                            valueColor: AppColors.primary,
+                          ),
+                          _buildKpiCard(
+                            width: width,
+                            label: 'Cognitive Load',
+                            value: '1.18x',
+                            unitBadge: 'Balanced',
+                            foot: 'No conflicts',
+                            icon: Icons.psychology_outlined,
+                            iconColor: const Color(0xFFC0A8FF),
+                            progress: 0.59,
+                          ),
+                          _buildKpiCard(
+                            width: width,
+                            label: 'Nearest deadline',
+                            value: _nearestDeadlineProject != null
+                                ? 'In ${_nearestDeadlineProject!.daysLeft} days'
+                                : 'No deadline',
+                            foot: _nearestDeadlineProject?.name ?? 'All tasks clear',
+                            icon: Icons.timer_outlined,
+                            iconColor: const Color(0xFFFF6B6B),
+                            progress: 0.80,
+                            valueColor: const Color(0xFFFF6B6B),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+              // 4. Portfolio Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Portfolio',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141414),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.surfaceBorder),
+                        ),
+                        child: Text(
+                          '${_filteredProjects.length} projects',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 5. Project Cards List
+              if (_isLoading)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                  ),
+                )
+              else if (_filteredProjects.isEmpty)
+                SliverToBoxAdapter(
+                  child: Container(
+                    margin: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(36),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceBorder),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.folder_open, size: 48, color: AppColors.textMuted),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No projects found',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Create a new project to start scheduling with AI.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _openCreateProject,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.onPrimary,
+                          ),
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Create project'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final p = _filteredProjects[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _buildProjectCard(p),
+                        );
+                      },
+                      childCount: _filteredProjects.length,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildProjectCard(ProjectModel project) {
-    final isArchived = project.status == 'Archived';
-
-    return InkWell(
-      onTap: () {
-        Navigator.of(context)
-            .push(
-              MaterialPageRoute(
-                builder: (_) => ProjectDetailScreen(project: project),
+  Widget _buildFilterChip(String label, String id, int count) {
+    final isSelected = _selectedFilter == id;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: () {
+          setState(() => _selectedFilter = id);
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.surface : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.surfaceBorder,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                ),
               ),
-            )
-            .then((_) => _loadProjects());
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.surfaceBorder),
+              const SizedBox(width: 6),
+              Text(
+                '$count',
+                style: TextStyle(
+                  color: isSelected ? AppColors.primary : AppColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
+      ),
+    );
+  }
+
+  Widget _buildKpiCard({
+    required double width,
+    required String label,
+    required String value,
+    String? unit,
+    String? unitBadge,
+    required String foot,
+    required IconData icon,
+    required Color iconColor,
+    required double progress,
+    Color? valueColor,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.surfaceBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(icon, size: 16, color: iconColor),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  color: valueColor ?? AppColors.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              if (unit != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  unit,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              if (unitBadge != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                   child: Text(
-                    project.name,
+                    unitBadge,
                     style: const TextStyle(
-                      color: AppColors.textPrimary,
+                      color: AppColors.primary,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
                     ),
                   ),
                 ),
-                StatusBadge(status: project.status),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textMuted),
-                  color: AppColors.surface,
-                  onSelected: (val) {
-                    if (val == 'archive') {
-                      _handleArchive(project);
-                    } else if (val == 'restore') {
-                      _handleRestore(project);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    if (!isArchived)
-                      const PopupMenuItem(
-                        value: 'archive',
-                        child: Row(
-                          children: [
-                            Icon(Icons.archive_outlined, size: 16, color: AppColors.textSecondary),
-                            SizedBox(width: 8),
-                            Text('Lưu trữ dự án', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                          ],
-                        ),
-                      )
-                    else
-                      const PopupMenuItem(
-                        value: 'restore',
-                        child: Row(
-                          children: [
-                            Icon(Icons.unarchive_outlined, size: 16, color: AppColors.accentGreen),
-                            SizedBox(width: 8),
-                            Text('Khôi phục dự án', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                          ],
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: const Color(0xFF2E2E2E),
+              valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+              minHeight: 3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            foot,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProjectCard(ProjectModel project) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceBorder),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProjectDetailScreen(project: project),
+              ),
+            ).then((_) => _loadProjects());
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top badges & menu
+                Row(
+                  children: [
+                    // AI Orchestrated badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: const BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            project.badgeLabel,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Client badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141414),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Text(
+                        project.clientName ?? 'Internal',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
+                    ),
+                    const Spacer(),
+
+                    // More Menu ⋮
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textMuted),
+                      color: AppColors.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: const BorderSide(color: AppColors.surfaceBorder),
+                      ),
+                      onSelected: (val) {
+                        if (val == 'edit') {
+                          _openEditProject(project);
+                        } else if (val == 'archive') {
+                          _handleArchive(project);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined, size: 16, color: AppColors.textSecondary),
+                              SizedBox(width: 8),
+                              Text('Edit Project', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'archive',
+                          child: Row(
+                            children: [
+                              Icon(Icons.archive_outlined, size: 16, color: AppColors.textSecondary),
+                              SizedBox(width: 8),
+                              Text('Archive Project', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Project Title
+                Text(
+                  project.name,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Due Date & Days left
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.textMuted),
+                    const SizedBox(width: 6),
+                    Text(
+                      project.deadlineDisplay,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Work Progress Bar
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Work progress',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    Text(
+                      '35% (0/0 tasks)',
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: const LinearProgressIndicator(
+                    value: 0.35,
+                    backgroundColor: Color(0xFF222222),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    minHeight: 4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Description / Scope snippet box
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.description_outlined, size: 15, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          project.description != null && project.description!.isNotEmpty
+                              ? project.description!
+                              : 'No description',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: project.description != null && project.description!.isNotEmpty
+                                ? AppColors.textPrimary
+                                : AppColors.textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Bottom hint row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: const [
+                    Text(
+                      'View details',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward, size: 14, color: AppColors.primary),
                   ],
                 ),
               ],
             ),
-            if (project.description != null && project.description!.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                project.description!,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-            if (project.clientName != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.business_outlined, size: 14, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text(
-                    project.clientName!,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.access_time, size: 14, color: AppColors.textMuted),
-                const SizedBox(width: 6),
-                Text(
-                  project.deadline != null
-                      ? 'Hạn chót: ${project.deadline}'
-                      : 'Không có deadline',
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-                const Spacer(),
-                const Text(
-                  'Xem chi tiết',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Icon(Icons.chevron_right, size: 16, color: AppColors.primary),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+}
+
+extension IterableExtension<T> on Iterable<T> {
+  Iterable<T> filter(bool Function(T) test) sync* {
+    for (final element in this) {
+      if (test(element)) yield element;
+    }
   }
 }

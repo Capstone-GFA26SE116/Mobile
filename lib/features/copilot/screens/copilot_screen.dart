@@ -33,10 +33,10 @@ class _CopilotScreenState extends State<CopilotScreen> {
   final Set<String> _appliedDraftIds = {};
 
   final List<String> _quickPrompts = [
-    '⚡ Phân rã thành 3-5 subtask (≤ 60 phút)',
-    '🧠 Ước lượng thực tế dựa trên Kbias lịch sử',
-    '☕ Thêm 10 phút đệm nghỉ sau mỗi chặng',
-    '🔄 Tối ưu thứ tự theo độ phụ thuộc kỹ thuật',
+    '⚡ Break down into 3-5 subtasks (≤ 60m)',
+    '🧠 Estimate realistic time based on historical Kbias',
+    '☕ Add 10m buffer after each focus block',
+    '🔄 Optimize sequence by technical dependency',
   ];
 
   @override
@@ -53,9 +53,9 @@ class _CopilotScreenState extends State<CopilotScreen> {
         id: 'msg_welcome',
         role: 'ai',
         text: _selectedTaskTitle != null
-            ? 'Chào bạn! Tôi đang đồng bộ với tác vụ "$_selectedTaskTitle". Bạn muốn tôi phân rã chi tiết, tính toán lại thời gian theo hệ số bù trừ nhận thức Kbias, hay sắp xếp lịch trình?'
-            : 'Chào bạn! Tôi là Metanoia Copilot — trợ lý điều phối lịch trình và phân rã nhận thức. Bạn có thể chọn một tác vụ cụ thể hoặc trò chuyện trực tiếp để tối ưu hóa công việc.',
-        time: 'Bây giờ',
+            ? 'Hello! I am synced with "$_selectedTaskTitle". Would you like me to decompose it into subtasks, recalculate durations with your cognitive K_bias factor, or optimize your schedule?'
+            : 'Hello! I am Metanoia Copilot — your cognitive scheduling and decomposition assistant. Select a task or chat directly to optimize your focus rhythm.',
+        time: 'Now',
         kind: 'text',
       ),
     );
@@ -81,7 +81,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
     if (projects.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Chưa có dự án nào để chọn tác vụ.'),
+          content: Text('No projects found to select tasks from.'),
           backgroundColor: AppColors.primary,
         ),
       );
@@ -104,7 +104,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Chọn Tác Vụ để Phân Rã Nhận Thức',
+                    'Select Task for Cognitive Decomposition',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 16,
@@ -140,7 +140,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                                       const Padding(
                                         padding: EdgeInsets.all(8),
                                         child: Text(
-                                          'Dự án chưa có task nào.',
+                                          'No tasks in this project.',
                                           style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                                         ),
                                       )
@@ -197,8 +197,8 @@ class _CopilotScreenState extends State<CopilotScreen> {
           CopilotMessage(
             id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
             role: 'ai',
-            text: 'Đã chuyển sang tác vụ "$title". Bạn muốn tôi phân rã thành các subtask hay tính toán lại thời gian theo Kbias?',
-            time: 'Bây giờ',
+            text: 'Switched to task "$title". Would you like me to decompose it into subtasks or re-estimate durations with Kbias?',
+            time: 'Now',
             kind: 'text',
           ),
         );
@@ -257,7 +257,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Đã đồng bộ các subtask vào kế hoạch và Backend thành công!'),
+          content: Text('Successfully synced subtasks to task schedule!'),
           backgroundColor: AppColors.accentGreen,
           behavior: SnackBarBehavior.floating,
         ),
@@ -292,7 +292,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.15),
+                    color: AppColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Icon(Icons.psychology, color: AppColors.primary, size: 18),
@@ -330,7 +330,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Chọn tác vụ phân rã',
+            tooltip: 'Select task to break down',
             icon: const Icon(Icons.playlist_add_check, color: AppColors.primary),
             onPressed: _handleSelectTask,
           ),
@@ -346,7 +346,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
@@ -354,14 +354,14 @@ class _CopilotScreenState extends State<CopilotScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Tác vụ: $_selectedTaskTitle',
+                      'Task: $_selectedTaskTitle',
                       style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   InkWell(
                     onTap: _handleSelectTask,
-                    child: const Text('Đổi', style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: const Text('Change', style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -427,9 +427,9 @@ class _CopilotScreenState extends State<CopilotScreen> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'Copilot đang suy luận và phân tích...',
+                    'Copilot is reasoning and analyzing...',
                     style: TextStyle(
-                      color: AppColors.textSecondary.withOpacity(0.8),
+                      color: AppColors.textSecondary.withValues(alpha: 0.8),
                       fontSize: 12,
                       fontStyle: FontStyle.italic,
                     ),
@@ -494,7 +494,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: AppColors.accentGreen.withOpacity(0.2),
+                  color: AppColors.accentGreen.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -558,7 +558,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,7 +571,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                   Icon(Icons.checklist_rtl, color: AppColors.primary, size: 16),
                   SizedBox(width: 6),
                   Text(
-                    'Đề xuất Subtasks nhận thức',
+                    'Cognitive Subtasks Proposal',
                     style: TextStyle(
                       color: AppColors.primary,
                       fontSize: 13,
@@ -583,11 +583,11 @@ class _CopilotScreenState extends State<CopilotScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.15),
+                  color: AppColors.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '${draft.subtaskTotalMinutes} phút',
+                  '${draft.subtaskTotalMinutes} mins',
                   style: const TextStyle(
                     color: AppColors.primary,
                     fontSize: 11,
@@ -649,7 +649,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${sub.minutes}p',
+                      '${sub.minutes}m',
                       style: const TextStyle(
                         color: AppColors.accentGreen,
                         fontSize: 12,
@@ -665,9 +665,9 @@ class _CopilotScreenState extends State<CopilotScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
+                color: Colors.amber.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -694,7 +694,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                 size: 16,
               ),
               label: Text(
-                isApplied ? 'Đã áp dụng vào tác vụ' : 'Đồng ý & Áp dụng Subtasks',
+                isApplied ? 'Applied to task' : 'Accept & Apply Subtasks',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
@@ -735,7 +735,7 @@ class _CopilotScreenState extends State<CopilotScreen> {
                   controller: _textController,
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                   decoration: const InputDecoration(
-                    hintText: 'Nhập câu hỏi hoặc yêu cầu phân rã...',
+                    hintText: 'Ask a question or request task breakdown...',
                     hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
                     border: InputBorder.none,
                   ),

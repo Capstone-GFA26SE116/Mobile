@@ -26,7 +26,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
     if (proposalId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không có đề xuất hợp lệ để duyệt.'),
+          content: Text('No valid proposal to approve.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -42,7 +42,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Đã phê duyệt đề xuất lịch AI thành công!'),
+          content: Text('AI schedule proposal approved successfully!'),
           backgroundColor: AppColors.accentGreen,
         ),
       );
@@ -89,7 +89,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.2),
+                  color: AppColors.primary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
@@ -97,7 +97,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Đề xuất lịch trình từ AI (FR-10)',
+                  'AI Schedule Proposal (FR-10)',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
@@ -108,11 +108,11 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: p.isFeasible ? AppColors.accentGreen.withOpacity(0.15) : Colors.redAccent.withOpacity(0.15),
+                  color: p.isFeasible ? AppColors.accentGreen.withValues(alpha: 0.15) : Colors.redAccent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  p.isFeasible ? 'Khả thi' : 'Thiếu giờ',
+                  p.isFeasible ? 'Feasible' : 'Underallocated',
                   style: TextStyle(
                     color: p.isFeasible ? AppColors.accentGreen : Colors.redAccent,
                     fontSize: 11,
@@ -129,7 +129,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
             decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,7 +140,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                   child: Text(
                     p.explanation.isNotEmpty
                         ? p.explanation
-                        : 'AI đã phân tích nhịp sinh học và deadline để xếp các slot tối ưu.',
+                        : 'AI analyzed your cognitive rhythm and deadlines to schedule optimal focus blocks.',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 13,
@@ -159,9 +159,9 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -180,7 +180,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
             const SizedBox(height: 8),
           ],
           Text(
-            'Các slot đề xuất (${p.slots.length} slot)',
+            'Proposed Focus Slots (${p.slots.length})',
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 14,
@@ -217,7 +217,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '$start - $end (${s.proposedMinutes} phút)',
+                            '$start - $end (${s.proposedMinutes} mins)',
                             style: const TextStyle(
                               color: AppColors.primary,
                               fontSize: 13,
@@ -227,7 +227,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.15),
+                              color: Colors.amber.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: const Text(
@@ -272,7 +272,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                   )
                 : const Text(
-                    'Phê duyệt & Áp dụng lịch (FR-11)',
+                    'Approve & Apply Schedule (FR-11)',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
           ),

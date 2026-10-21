@@ -16,31 +16,31 @@ class StatusBadge extends StatelessWidget {
       case 'approved':
       case 'done':
       case 'completed':
-        bg = AppColors.accentGreen.withOpacity(0.15);
+        bg = AppColors.accentGreen.withValues(alpha: 0.15);
         text = AppColors.accentGreen;
-        label = status == 'done' ? 'Hoàn thành' : 'Đã duyệt';
+        label = (status.toLowerCase() == 'approved') ? 'Approved' : 'Completed';
         break;
       case 'proposed':
       case 'pending':
-        bg = Colors.amber.withOpacity(0.15);
+        bg = Colors.amber.withValues(alpha: 0.15);
         text = Colors.amber;
-        label = status == 'proposed' ? 'AI đề xuất' : 'Chờ duyệt';
+        label = status.toLowerCase() == 'proposed' ? 'AI Proposed' : 'Pending';
         break;
       case 'inprogress':
-        bg = AppColors.primary.withOpacity(0.15);
+        bg = AppColors.primary.withValues(alpha: 0.15);
         text = AppColors.primary;
-        label = 'Đang làm';
+        label = 'In Progress';
         break;
       case 'todo':
         bg = AppColors.surfaceBorder;
         text = AppColors.textSecondary;
-        label = 'Cần làm';
+        label = 'To Do';
         break;
       case 'skipped':
       case 'cancelled':
-        bg = Colors.redAccent.withOpacity(0.15);
+        bg = Colors.redAccent.withValues(alpha: 0.15);
         text = Colors.redAccent;
-        label = 'Đã hủy';
+        label = 'Cancelled';
         break;
       default:
         bg = AppColors.surfaceBorder;
@@ -52,7 +52,7 @@ class StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: text.withOpacity(0.3), width: 0.8),
+        border: Border.all(color: text.withValues(alpha: 0.3), width: 0.8),
       ),
       child: Text(
         label,

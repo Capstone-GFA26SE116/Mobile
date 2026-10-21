@@ -18,13 +18,21 @@ class MainShellScreen extends StatefulWidget {
 class _MainShellScreenState extends State<MainShellScreen> {
   late int _currentIndex;
 
-  final List<Widget> _screens = const [
-    DashboardScreen(),
-    ProjectsScreen(),
-    ScheduleScreen(),
-    CopilotScreen(),
-    ProfileScreen(),
-  ];
+  List<Widget> _buildScreens() {
+    return [
+      DashboardScreen(
+        onNavigateToSchedule: () {
+          setState(() {
+            _currentIndex = 2;
+          });
+        },
+      ),
+      const ProjectsScreen(),
+      const ScheduleScreen(),
+      const CopilotScreen(),
+      const ProfileScreen(),
+    ];
+  }
 
   @override
   void initState() {
@@ -38,7 +46,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       backgroundColor: AppColors.background,
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: _buildScreens(),
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
@@ -63,19 +71,19 @@ class _MainShellScreenState extends State<MainShellScreen> {
           elevation: 0,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              activeIcon: Icon(Icons.dashboard),
-              label: 'Tổng quan',
+              icon: Icon(Icons.today_outlined),
+              activeIcon: Icon(Icons.today),
+              label: 'Today',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.folder_outlined),
               activeIcon: Icon(Icons.folder),
-              label: 'Dự án',
+              label: 'Projects',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.calendar_month_outlined),
               activeIcon: Icon(Icons.calendar_month),
-              label: 'Lịch trình',
+              label: 'Schedule',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.psychology_outlined),
@@ -85,7 +93,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               activeIcon: Icon(Icons.person),
-              label: 'Hồ sơ',
+              label: 'Profile',
             ),
           ],
         ),

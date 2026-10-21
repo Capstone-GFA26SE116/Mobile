@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
-/// Logo METANOIA — Vẽ vector trực tiếp tương ứng component MetanoiaLogo trong Frontend
+/// METANOIA Logo — Custom vector painter matching the MetanoiaLogo frontend component
 class MetanoiaLogo extends StatelessWidget {
   final double size;
   final bool withWordmark;
@@ -50,7 +50,7 @@ class _MetanoiaLogoPainter extends CustomPainter {
     final center = const Offset(18, 20);
     const radius = 14.0;
 
-    // Gradient stroke cho vòng cung
+    // Gradient stroke for arc
     final rect = Rect.fromCircle(center: center, radius: radius);
     final gradient = const SweepGradient(
       startAngle: 0.0,
@@ -69,7 +69,7 @@ class _MetanoiaLogoPainter extends CustomPainter {
       ..strokeWidth = 3.0
       ..strokeCap = StrokeCap.round;
 
-    // Vẽ vòng hở (khoảng 290 độ)
+    // Draw open arc (~290 degrees)
     canvas.drawArc(
       rect,
       -math.pi / 2,
@@ -78,7 +78,7 @@ class _MetanoiaLogoPainter extends CustomPainter {
       arcPaint,
     );
 
-    // Vẽ mũi tên tiến hóa ở đầu vòng
+    // Draw evolution arrow at arc head
     final arrowPaint = Paint()
       ..color = AppColors.voltagentPrimary
       ..style = PaintingStyle.stroke
@@ -93,7 +93,7 @@ class _MetanoiaLogoPainter extends CustomPainter {
 
     canvas.drawPath(arrowPath, arrowPaint);
 
-    // Vẽ chấm tâm (core consciousness)
+    // Draw core consciousness dot
     final dotPaint = Paint()
       ..color = AppColors.voltagentPrimary
       ..style = PaintingStyle.fill;

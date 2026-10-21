@@ -86,7 +86,7 @@ class CopilotMessage {
       id: json['id'] ?? '',
       role: json['role'] ?? 'ai',
       text: json['content'] ?? json['text'] ?? '',
-      time: json['time'] ?? 'Vừa xong',
+      time: json['time'] ?? 'Just now',
       kind: json['kind'] ?? (json['draft'] != null ? 'draft' : 'text'),
       draft: json['draft'] != null ? CopilotDraft.fromJson(json['draft']) : null,
     );

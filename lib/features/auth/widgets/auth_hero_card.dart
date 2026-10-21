@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 
-/// Thẻ hiển thị giá trị cốt lõi (Value Proposition Card) chuẩn phong cách Voltagent của Frontend
+/// Voltagent-styled Value Proposition Card for authentication screens
 class AuthHeroCard extends StatelessWidget {
   const AuthHeroCard({super.key});
 
@@ -28,7 +28,7 @@ class AuthHeroCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  '“Điều phối lịch trình thông minh theo nhịp sinh học cá nhân.”',
+                  '“Intelligent schedule coordination aligned with your cognitive rhythm.”',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -51,7 +51,7 @@ class AuthHeroCard extends StatelessWidget {
                 height: 1.4,
               ),
               children: [
-                const TextSpan(text: 'Tự động chống ảo tưởng thời gian ('),
+                const TextSpan(text: 'Mitigate '),
                 TextSpan(
                   text: 'Planning Fallacy',
                   style: const TextStyle(
@@ -59,7 +59,7 @@ class AuthHeroCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const TextSpan(text: ') với thuật toán bù trừ K_bias'),
+                const TextSpan(text: ' with dynamic K_bias calibration buffer'),
               ],
             ),
           ),
@@ -73,7 +73,7 @@ class AuthHeroCard extends StatelessWidget {
                 height: 1.4,
               ),
               children: [
-                const TextSpan(text: 'Bảo vệ các khung giờ '),
+                const TextSpan(text: 'Protect critical '),
                 const TextSpan(
                   text: 'Deep Work',
                   style: TextStyle(
@@ -81,7 +81,7 @@ class AuthHeroCard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const TextSpan(text: ' & đệm nghỉ tái tạo năng lượng'),
+                const TextSpan(text: ' blocks & cognitive recharge periods'),
               ],
             ),
           ),
@@ -89,7 +89,7 @@ class AuthHeroCard extends StatelessWidget {
           _buildBullet(
             icon: Icons.shield_outlined,
             richText: const TextSpan(
-              text: 'Mã hóa & bảo mật dữ liệu nhận thức cục bộ',
+              text: 'End-to-end encrypted cognitive pattern analytics',
               style: TextStyle(
                 color: AppColors.voltagentBody,
                 fontSize: 12.5,

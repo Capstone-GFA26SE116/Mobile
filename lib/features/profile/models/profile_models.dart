@@ -36,7 +36,7 @@ class ProfileModel {
     return ProfileModel(
       id: json['id']?.toString() ?? '',
       email: json['email'] ?? '',
-      fullName: json['fullName'] ?? 'Người dùng',
+      fullName: json['fullName'] ?? 'User',
       role: json['role'] ?? 'User',
       timeZone: json['timeZone'] ?? 'Asia/Ho_Chi_Minh',
       workDayStart: json['workDayStart']?.toString() ?? '08:00:00',
@@ -79,7 +79,7 @@ class SubscriptionPlanItem {
       code: json['code'] ?? '',
       name: json['name'] ?? '',
       priceVnd: (json['price'] as num?)?.toInt() ?? json['priceVnd'] ?? 0,
-      billingCycle: json['billingCycle'] ?? 'tháng',
+      billingCycle: json['billingCycle'] ?? 'month',
       description: json['description'] ?? '',
       features: (json['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       isPopular: json['isPopular'] ?? false,

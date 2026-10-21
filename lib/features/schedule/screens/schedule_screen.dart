@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/status_badge.dart';
 import '../../dashboard/models/dashboard_models.dart';
 import '../data/schedule_repository.dart';
 import '../models/schedule_models.dart';
@@ -16,35 +15,77 @@ class ScheduleScreen extends StatefulWidget {
 class _ScheduleScreenState extends State<ScheduleScreen> {
   final ScheduleRepository _repository = ScheduleRepository();
 
+  String _viewMode = 'week'; // 'week' | 'month'
+  String _filter = 'all'; // 'all' | 'priority' | 'capstone' | 'deep'
+
+  DateTime _anchorDate = DateTime.now();
   DateTime _selectedDate = DateTime.now();
-  List<CalendarSlotModel> _weekSlots = [];
+
+  List<CalendarSlotModel> _allSlots = [];
   AiProposalResponse? _pendingProposal;
+
   bool _isLoading = true;
   bool _isProposing = false;
   bool _isSyncing = false;
 
+  static const List<String> _weekdayLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  static const List<String> _monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
   @override
   void initState() {
     super.initState();
-    _loadWeekSchedule();
+    _loadSchedule();
     _checkPendingProposal();
   }
 
   DateTime _startOfWeek(DateTime d) {
-    final day = d.weekday;
+    final day = d.weekday; // Mon=1, Sun=7
     return DateTime(d.year, d.month, d.day).subtract(Duration(days: day - 1));
   }
 
-  Future<void> _loadWeekSchedule() async {
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  (DateTime, DateTime) _getRange() {
+    if (_viewMode == 'month') {
+      final firstDayOfMonth = DateTime(_anchorDate.year, _anchorDate.month, 1);
+      final lastDayOfMonth = DateTime(_anchorDate.year, _anchorDate.month + 1, 0, 23, 59, 59);
+      final start = _startOfWeek(firstDayOfMonth);
+      final end = _startOfWeek(lastDayOfMonth).add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+      return (start, end);
+    } else {
+      final start = _startOfWeek(_anchorDate);
+      final end = start.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+      return (start, end);
+    }
+  }
+
+  String _getPeriodLabel() {
+    if (_viewMode == 'month') {
+      return '${_monthNames[_anchorDate.month - 1]} ${_anchorDate.year}';
+    } else {
+      final start = _startOfWeek(_anchorDate);
+      final end = start.add(const Duration(days: 6));
+      if (start.month == end.month) {
+        return '${start.day} – ${end.day} ${_monthNames[start.month - 1]} ${start.year}';
+      }
+      return '${start.day} ${_monthNames[start.month - 1].substring(0, 3)} – ${end.day} ${_monthNames[end.month - 1].substring(0, 3)} ${end.year}';
+    }
+  }
+
+  Future<void> _loadSchedule() async {
     setState(() => _isLoading = true);
-    final monday = _startOfWeek(_selectedDate);
-    final sunday = monday.add(const Duration(days: 7, seconds: -1));
+    final (from, to) = _getRange();
 
     try {
-      final slots = await _repository.getCalendarRange(monday, sunday);
+      final slots = await _repository.getCalendarRange(from, to);
       if (mounted) {
         setState(() {
-          _weekSlots = slots;
+          _allSlots = slots;
           _isLoading = false;
         });
       }
@@ -57,19 +98,110 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     try {
       final pending = await _repository.getPendingProposal();
       if (mounted) {
-        setState(() {
-          _pendingProposal = pending;
-        });
+        setState(() => _pendingProposal = pending);
       }
     } catch (_) {}
+  }
+
+  void _goPrev() {
+    setState(() {
+      if (_viewMode == 'month') {
+        _anchorDate = DateTime(_anchorDate.year, _anchorDate.month - 1, 1);
+        _selectedDate = _anchorDate;
+      } else {
+        _anchorDate = _anchorDate.subtract(const Duration(days: 7));
+        _selectedDate = _anchorDate;
+      }
+    });
+    _loadSchedule();
+  }
+
+  void _goNext() {
+    setState(() {
+      if (_viewMode == 'month') {
+        _anchorDate = DateTime(_anchorDate.year, _anchorDate.month + 1, 1);
+        _selectedDate = _anchorDate;
+      } else {
+        _anchorDate = _anchorDate.add(const Duration(days: 7));
+        _selectedDate = _anchorDate;
+      }
+    });
+    _loadSchedule();
+  }
+
+  void _goToday() {
+    setState(() {
+      _anchorDate = DateTime.now();
+      _selectedDate = DateTime.now();
+    });
+    _loadSchedule();
+  }
+
+  List<CalendarSlotModel> get _filteredSlots {
+    return _allSlots.where((slot) {
+      if (_filter == 'priority') {
+        final isFixed = slot.taskType?.toLowerCase() == 'fixed';
+        final isApproved = slot.status?.toLowerCase() == 'approved';
+        return isFixed || isApproved;
+      } else if (_filter == 'capstone') {
+        final p = (slot.projectName ?? '').toLowerCase();
+        final t = slot.title.toLowerCase();
+        return p.contains('capstone') || t.contains('capstone') || p.contains('do an') || t.contains('do an');
+      } else if (_filter == 'deep') {
+        final dur = slot.end.difference(slot.start).inMinutes;
+        return dur >= 60;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<CalendarSlotModel> _getSlotsForDay(DateTime day) {
+    return _filteredSlots.where((s) => _isSameDay(s.start, day)).toList();
+  }
+
+  double _getScheduledHoursForDay(DateTime day) {
+    final daySlots = _getSlotsForDay(day);
+    double total = 0.0;
+    for (final s in daySlots) {
+      if (s.isAllDay) {
+        total += 1.0;
+      } else {
+        final diff = s.end.difference(s.start).inMinutes;
+        total += (diff / 60.0);
+      }
+    }
+    return total;
+  }
+
+  Color _getStatusColor(String? status) {
+    final s = status?.toLowerCase() ?? '';
+    if (s == 'done' || s == 'completed') return const Color(0xFF00D992);
+    if (s == 'inprogress') return const Color(0xFF2FD6A1);
+    if (s == 'scheduled' || s == 'approved') return const Color(0xFF4EA8FF);
+    if (s == 'todo') return const Color(0xFF8B949E);
+    if (s == 'skipped' || s == 'cancelled') return const Color(0xFF555555);
+    return const Color(0xFF00D992);
+  }
+
+  Color _getProjectAccentColor(String? projectName) {
+    if (projectName == null || projectName.isEmpty) return const Color(0xFF00D992);
+    final hash = projectName.hashCode.abs();
+    final colors = [
+      const Color(0xFF00D992), // Electric Green
+      const Color(0xFF38BDF8), // Sky Blue
+      const Color(0xFFA78BFA), // Purple
+      const Color(0xFFF472B6), // Pink
+      const Color(0xFFFBBF24), // Amber
+      const Color(0xFF34D399), // Emerald
+    ];
+    return colors[hash % colors.length];
   }
 
   Future<void> _handleProposeAi() async {
     setState(() => _isProposing = true);
     try {
-      final proposal = await _repository.proposeSchedule(language: 'vi');
+      final proposal = await _repository.proposeSchedule(language: 'en');
       if (!mounted) return;
-
       _showProposalSheet(proposal);
     } catch (e) {
       if (!mounted) return;
@@ -78,12 +210,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.surfaceBorder)),
           title: const Row(
             children: [
-              Icon(Icons.auto_awesome, color: Colors.orangeAccent),
+              Icon(Icons.auto_awesome, color: Color(0xFF00D992)),
               SizedBox(width: 8),
-              Text('Thông Báo AI Xếp Lịch', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('AI Schedule Notice', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           content: Text(
@@ -94,7 +226,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Đã hiểu', style: TextStyle(color: Colors.white)),
+              child: const Text('Got it', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -113,7 +245,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         proposal: proposal,
         onApproved: () {
           setState(() => _pendingProposal = null);
-          _loadWeekSchedule();
+          _loadSchedule();
         },
       ),
     );
@@ -123,12 +255,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     setState(() => _isSyncing = true);
     try {
       final msg = await _repository.syncGoogleCalendar();
-      await _loadWeekSchedule();
+      await _loadSchedule();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(msg),
-            backgroundColor: AppColors.accentGreen,
+            backgroundColor: const Color(0xFF00D992),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -138,6 +271,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -150,21 +284,25 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Hủy khung giờ', style: TextStyle(color: AppColors.textPrimary)),
+        backgroundColor: const Color(0xFF161616),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF2E2E2E)),
+        ),
+        title: const Text('Cancel Scheduled Slot', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
         content: Text(
-          'Bạn có muốn hủy khung giờ "${slot.title}" không?',
-          style: const TextStyle(color: AppColors.textSecondary),
+          'Are you sure you want to remove "${slot.title}" from your schedule?',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Không', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Keep Slot', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Hủy Slot', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B6B)),
+            child: const Text('Remove Slot', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -173,12 +311,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     if (confirm == true) {
       try {
         await _repository.cancelSlot(slot.id);
-        _loadWeekSchedule();
+        _loadSchedule();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Đã hủy khung giờ thành công.'),
-              backgroundColor: AppColors.primary,
+              content: Text('Slot removed successfully.'),
+              backgroundColor: Color(0xFF00D992),
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -188,6 +327,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             SnackBar(
               content: Text(e.toString().replaceAll('Exception: ', '')),
               backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -195,129 +335,321 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
   }
 
+  void _showEventDetailSheet(CalendarSlotModel slot) {
+    final durMinutes = slot.end.difference(slot.start).inMinutes;
+    final durString = slot.isAllDay ? 'All day' : (durMinutes >= 60 ? '${(durMinutes / 60.0).toStringAsFixed(1)}h' : '${durMinutes}m');
+    final projColor = _getProjectAccentColor(slot.projectName);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161616),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: Color(0xFF2E2E2E))),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF333333),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    margin: const EdgeInsets.only(top: 6, right: 10),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(slot.status),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          slot.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                          ),
+                        ),
+                        if (slot.projectName != null && slot.projectName!.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: projColor,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                slot.projectName!,
+                                style: TextStyle(
+                                  color: projColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(slot.status).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _getStatusColor(slot.status).withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      slot.status ?? slot.source,
+                      style: TextStyle(
+                        color: _getStatusColor(slot.status),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Color(0xFF262626), height: 1),
+              const SizedBox(height: 16),
+
+              // Timings
+              _buildDetailRow(
+                Icons.schedule,
+                'Time Range',
+                slot.isAllDay
+                    ? 'All Day (${slot.start.month}/${slot.start.day})'
+                    : '${slot.start.hour.toString().padLeft(2, '0')}:${slot.start.minute.toString().padLeft(2, '0')} – ${slot.end.hour.toString().padLeft(2, '0')}:${slot.end.minute.toString().padLeft(2, '0')}',
+              ),
+              _buildDetailRow(
+                Icons.timelapse,
+                'Duration',
+                durString,
+              ),
+              _buildDetailRow(
+                Icons.category_outlined,
+                'Source / Type',
+                '${slot.source} · ${slot.taskType ?? 'Flexible'}',
+              ),
+              if (slot.domainName != null && slot.domainName!.isNotEmpty)
+                _buildDetailRow(
+                  Icons.label_outline,
+                  'Domain',
+                  slot.domainName!,
+                ),
+              if (slot.explanation != null && slot.explanation!.isNotEmpty)
+                _buildDetailRow(
+                  Icons.auto_awesome,
+                  'AI Explanation',
+                  slot.explanation!,
+                ),
+              if (slot.isManualOverride)
+                _buildDetailRow(
+                  Icons.touch_app,
+                  'Override',
+                  'Manually scheduled by user',
+                ),
+
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF333333)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Close', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                  if (slot.source.toLowerCase() == 'slot' || slot.taskId != null) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF221111),
+                          foregroundColor: const Color(0xFFFF6B6B),
+                          side: const BorderSide(color: Color(0xFF552222)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _handleCancelSlot(slot);
+                        },
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: const Text('Remove Slot', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF8B949E)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(color: Color(0xFF8B949E), fontSize: 12),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final monday = _startOfWeek(_selectedDate);
-    final daysOfWeek = List.generate(7, (i) => monday.add(Duration(days: i)));
-
-    final currentDaySlots = _weekSlots.where((s) {
-      return s.start.year == _selectedDate.year &&
-          s.start.month == _selectedDate.month &&
-          s.start.day == _selectedDate.day;
-    }).toList();
+    final (from, to) = _getRange();
+    final startMonday = _startOfWeek(_anchorDate);
+    final weekDays = List.generate(7, (i) => startMonday.add(Duration(days: i)));
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFF101010),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF101010),
         elevation: 0,
         title: const Text(
-          'Lịch biểu làm việc',
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
+          'Schedule',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            letterSpacing: -0.3,
+          ),
         ),
         actions: [
           IconButton(
-            tooltip: 'Đồng bộ Google Calendar',
+            tooltip: 'Sync Google Calendar',
             icon: _isSyncing
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00D992)),
                   )
-                : const Icon(Icons.sync, color: AppColors.accentGreen),
+                : const Icon(Icons.sync, color: Color(0xFF00D992), size: 20),
             onPressed: _isSyncing ? null : _handleSyncGoogle,
           ),
+          IconButton(
+            tooltip: 'AI Auto-schedule',
+            icon: _isProposing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent),
+                  )
+                : const Icon(Icons.auto_awesome, color: Color(0xFF00D992), size: 20),
+            onPressed: _isProposing ? null : _handleProposeAi,
+          ),
+          const SizedBox(width: 8),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        onPressed: _isProposing ? null : _handleProposeAi,
-        icon: _isProposing
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-              )
-            : const Icon(Icons.auto_awesome, color: Colors.white),
-        label: Text(
-          _isProposing ? 'AI đang tính...' : 'AI Xếp lịch',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
       ),
       body: SafeArea(
         child: Column(
           children: [
-            // PENDING PROPOSAL BANNER IF EXISTS
+            // Pending Proposal Ribbon
             if (_pendingProposal != null)
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primary),
+                  color: const Color(0xFF00D992).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF00D992).withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.notifications_active, color: AppColors.primary, size: 20),
+                    const Icon(Icons.notifications_active, color: Color(0xFF00D992), size: 18),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'Bạn có 1 đề xuất lịch AI đang chờ duyệt!',
-                        style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                        '1 pending AI schedule proposal waiting for review',
+                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                     ),
-                    TextButton(
-                      style: TextButton.styleFrom(
+                    InkWell(
+                      onTap: () => _showProposalSheet(_pendingProposal!),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        backgroundColor: AppColors.primary,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00D992),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('Review', style: TextStyle(color: Color(0xFF101010), fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
-                      onPressed: () => _showProposalSheet(_pendingProposal!),
-                      child: const Text('Xem & Duyệt', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
               ),
 
-            _buildWeekBar(daysOfWeek),
-            const SizedBox(height: 12),
+            // Navigator Row: < Today > + Period Label + View Mode Selector (Week/Month)
+            _buildTimelineNavigator(),
+
+            // Filter Chips (All items, Priority, Capstone, Deep work)
+            _buildFilterChips(),
+
+            const SizedBox(height: 8),
+
+            // Main Calendar View: Week or Month (strictly calendar, 0 metric boxes)
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF00D992)))
                   : RefreshIndicator(
-                      color: AppColors.primary,
-                      onRefresh: _loadWeekSchedule,
-                      child: currentDaySlots.isEmpty
-                          ? ListView(
-                              padding: const EdgeInsets.all(32),
-                              children: const [
-                                SizedBox(height: 60),
-                                Icon(Icons.calendar_month, color: AppColors.textMuted, size: 48),
-                                SizedBox(height: 12),
-                                Center(
-                                  child: Text(
-                                    'Không có lịch trình cho ngày này.',
-                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-                                  ),
-                                ),
-                                SizedBox(height: 6),
-                                Center(
-                                  child: Text(
-                                    'Bấm "AI Xếp lịch" để tối ưu hóa công việc của bạn!',
-                                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                              itemCount: currentDaySlots.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 10),
-                              itemBuilder: (context, index) {
-                                final slot = currentDaySlots[index];
-                                return _buildSlotCard(slot);
-                              },
-                            ),
+                      color: const Color(0xFF00D992),
+                      backgroundColor: const Color(0xFF161616),
+                      onRefresh: _loadSchedule,
+                      child: _viewMode == 'week'
+                          ? _buildWeekView(weekDays)
+                          : _buildMonthView(from, to),
                     ),
             ),
           ],
@@ -326,154 +658,644 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
-  Widget _buildWeekBar(List<DateTime> days) {
-    const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-
+  Widget _buildTimelineNavigator() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: AppColors.surface,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: List.generate(7, (i) {
-          final date = days[i];
-          final isSelected = date.year == _selectedDate.year &&
-              date.month == _selectedDate.month &&
-              date.day == _selectedDate.day;
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Prev button
+              InkWell(
+                onTap: _goPrev,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161616),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF2E2E2E)),
+                  ),
+                  child: const Icon(Icons.chevron_left, color: Colors.white, size: 18),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Today button
+              InkWell(
+                onTap: _goToday,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161616),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF2E2E2E)),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Today',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Next button
+              InkWell(
+                onTap: _goNext,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161616),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF2E2E2E)),
+                  ),
+                  child: const Icon(Icons.chevron_right, color: Colors.white, size: 18),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Period label
+              Expanded(
+                child: Text(
+                  _getPeriodLabel(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
 
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedDate = date;
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
+              // View Mode Tabs: Week | Month
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161616),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF2E2E2E)),
+                ),
+                padding: const EdgeInsets.all(2),
+                child: Row(
+                  children: [
+                    _buildViewTab('week', 'Week'),
+                    _buildViewTab('month', 'Month'),
+                  ],
+                ),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    dayNames[i],
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    date.day.toString(),
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSlotCard(CalendarSlotModel slot) {
-    final start =
-        '${slot.start.hour.toString().padLeft(2, '0')}:${slot.start.minute.toString().padLeft(2, '0')}';
-    final end =
-        '${slot.end.hour.toString().padLeft(2, '0')}:${slot.end.minute.toString().padLeft(2, '0')}';
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: slot.status == 'Approved'
-              ? AppColors.primary.withOpacity(0.4)
-              : AppColors.surfaceBorder,
+  Widget _buildViewTab(String mode, String label) {
+    final active = _viewMode == mode;
+    return InkWell(
+      onTap: () {
+        if (_viewMode != mode) {
+          setState(() {
+            _viewMode = mode;
+          });
+          _loadSchedule();
+        }
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFF00D992) : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? const Color(0xFF101010) : const Color(0xFF8B949E),
+            fontSize: 11,
+            fontWeight: active ? FontWeight.bold : FontWeight.w500,
+          ),
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _buildFilterChips() {
+    final filters = [
+      ('all', 'All items'),
+      ('priority', 'Priority'),
+      ('capstone', 'Capstone'),
+      ('deep', 'Deep work'),
+    ];
+
+    return Container(
+      height: 36,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: filters.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (ctx, i) {
+          final f = filters[i];
+          final active = _filter == f.$1;
+          return InkWell(
+            onTap: () => setState(() => _filter = f.$1),
+            borderRadius: BorderRadius.circular(9999),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: active ? const Color(0xFF00D992).withValues(alpha: 0.1) : const Color(0xFF161616),
+                borderRadius: BorderRadius.circular(9999),
+                border: Border.all(
+                  color: active ? const Color(0xFF00D992) : const Color(0xFF2E2E2E),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  f.$2,
+                  style: TextStyle(
+                    color: active ? const Color(0xFF00D992) : const Color(0xFF8B949E),
+                    fontSize: 11,
+                    fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ===================== WEEK VIEW =====================
+  Widget _buildWeekView(List<DateTime> weekDays) {
+    final selectedDaySlots = _getSlotsForDay(_selectedDate);
+    final selectedDayHours = _getScheduledHoursForDay(_selectedDate);
+
+    return Column(
+      children: [
+        // 7-day horizontal strip
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: const BoxDecoration(
+            color: Color(0xFF101010),
+            border: Border(bottom: BorderSide(color: Color(0xFF1F1F1F))),
+          ),
+          child: Row(
+            children: weekDays.map((d) {
+              final isToday = _isSameDay(d, DateTime.now());
+              final isSelected = _isSameDay(d, _selectedDate);
+              final hours = _getScheduledHoursForDay(d);
+              final daySlots = _getSlotsForDay(d);
+              final hasEvents = daySlots.isNotEmpty;
+
+              return Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _selectedDate = d),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF00D992).withValues(alpha: 0.12)
+                          : isToday
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF00D992)
+                            : isToday
+                                ? const Color(0xFF00D992).withValues(alpha: 0.5)
+                                : const Color(0xFF222222),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _weekdayLabels[d.weekday - 1],
+                          style: TextStyle(
+                            color: isSelected
+                                ? const Color(0xFF00D992)
+                                : isToday
+                                    ? const Color(0xFF00D992)
+                                    : const Color(0xFF8B949E),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${d.day}',
+                          style: TextStyle(
+                            color: isSelected || isToday ? Colors.white : const Color(0xFFCCCCCC),
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (hours > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF262626),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              '${hours.toStringAsFixed(1)}h',
+                              style: const TextStyle(color: Color(0xFF8B949E), fontSize: 9, fontWeight: FontWeight.w600),
+                            ),
+                          )
+                        else if (hasEvents)
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF00D992),
+                              shape: BoxShape.circle,
+                            ),
+                          )
+                        else
+                          const SizedBox(height: 12),
+                        if (isToday) ...[
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Today',
+                            style: TextStyle(color: Color(0xFF00D992), fontSize: 8, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
+        // Day Agenda / Timeline Section
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             children: [
-              Text(
-                start,
-                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
+              // Day Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '${_weekdayLabels[_selectedDate.weekday - 1]}, ${_selectedDate.day} ${_monthNames[_selectedDate.month - 1]}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_isSameDay(_selectedDate, DateTime.now())) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00D992).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text('Today', style: TextStyle(color: Color(0xFF00D992), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  Text(
+                    '${selectedDaySlots.length} items · ${selectedDayHours.toStringAsFixed(1)}h',
+                    style: const TextStyle(color: Color(0xFF8B949E), fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                ],
               ),
-              Text(
-                end,
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
+              const SizedBox(height: 12),
+
+              if (selectedDaySlots.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 60),
+                  child: const Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.event_busy, color: Color(0xFF333333), size: 40),
+                        SizedBox(height: 10),
+                        Text('No events scheduled for this day', style: TextStyle(color: Color(0xFF666666), fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ...selectedDaySlots.map((slot) => _buildEventCard(slot)),
             ],
           ),
-          const SizedBox(width: 12),
+        ),
+      ],
+    );
+  }
+
+  // ===================== MONTH VIEW =====================
+  Widget _buildMonthView(DateTime rangeStart, DateTime rangeEnd) {
+    // Generate all days in the range
+    final totalDays = rangeEnd.difference(rangeStart).inDays + 1;
+    final allDays = List.generate(totalDays, (i) => rangeStart.add(Duration(days: i)));
+    final selectedSlots = _getSlotsForDay(_selectedDate);
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Weekday Labels Row
           Container(
-            width: 3,
-            height: 38,
-            decoration: BoxDecoration(
-              color: slot.source == 'Google' ? Colors.redAccent : AppColors.primary,
-              borderRadius: BorderRadius.circular(2),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFF1F1F1F))),
+            ),
+            child: Row(
+              children: _weekdayLabels.map((label) {
+                return Expanded(
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Color(0xFF8B949E),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
+
+          // 7-Column Month Grid
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: allDays.length,
+              itemBuilder: (ctx, idx) {
+                final day = allDays[idx];
+                final isCurrentMonth = day.month == _anchorDate.month;
+                final isToday = _isSameDay(day, DateTime.now());
+                final isSelected = _isSameDay(day, _selectedDate);
+                final slots = _getSlotsForDay(day);
+
+                return InkWell(
+                  onTap: () => setState(() => _selectedDate = day),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF00D992).withValues(alpha: 0.15)
+                          : isToday
+                              ? const Color(0xFF1A1A1A)
+                              : const Color(0xFF141414),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF00D992)
+                            : isToday
+                                ? const Color(0xFF00D992).withValues(alpha: 0.6)
+                                : const Color(0xFF222222),
+                        width: isSelected || isToday ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${day.day}',
+                              style: TextStyle(
+                                color: !isCurrentMonth
+                                    ? const Color(0xFF444444)
+                                    : isToday
+                                        ? const Color(0xFF00D992)
+                                        : Colors.white,
+                                fontSize: 11,
+                                fontWeight: isToday || isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                            if (slots.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00D992).withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: Text(
+                                  '${slots.length}',
+                                  style: const TextStyle(color: Color(0xFF00D992), fontSize: 8, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        // Event pills preview inside cell
+                        Expanded(
+                          child: slots.isEmpty
+                              ? const SizedBox()
+                              : ListView.builder(
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: slots.length > 2 ? 2 : slots.length,
+                                  itemBuilder: (c, sIdx) {
+                                    final s = slots[sIdx];
+                                    return Container(
+                                      margin: const EdgeInsets.only(top: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1F1F1F),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 4,
+                                            height: 4,
+                                            decoration: BoxDecoration(
+                                              color: _getStatusColor(s.status),
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Expanded(
+                                            child: Text(
+                                              s.title,
+                                              style: const TextStyle(color: Colors.white70, fontSize: 8),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Selected Day Event Details underneath Month Grid
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Color(0xFF131313),
+              border: Border(top: BorderSide(color: Color(0xFF222222))),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  slot.title,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 6),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    if (slot.status != null) StatusBadge(status: slot.status!),
-                    if (slot.source == 'Google') ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text('Google Calendar', style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
+                    Text(
+                      '${_weekdayLabels[_selectedDate.weekday - 1]}, ${_selectedDate.day} ${_monthNames[_selectedDate.month - 1]} ${_selectedDate.year}',
+                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${selectedSlots.length} events',
+                      style: const TextStyle(color: Color(0xFF8B949E), fontSize: 12),
+                    ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                if (selectedSlots.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text('No events scheduled for this day', style: TextStyle(color: Color(0xFF666666), fontSize: 12)),
+                    ),
+                  )
+                else
+                  ...selectedSlots.map((slot) => _buildEventCard(slot)),
               ],
             ),
           ),
-          if (slot.source != 'Google')
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, size: 16, color: AppColors.textMuted),
-              color: AppColors.surface,
-              onSelected: (val) {
-                if (val == 'cancel') {
-                  _handleCancelSlot(slot);
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: 'cancel',
-                  child: Row(
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventCard(CalendarSlotModel slot) {
+    final statusColor = _getStatusColor(slot.status);
+    final projColor = _getProjectAccentColor(slot.projectName);
+    final timeStr = slot.isAllDay
+        ? 'All day'
+        : '${slot.start.hour.toString().padLeft(2, '0')}:${slot.start.minute.toString().padLeft(2, '0')} – ${slot.end.hour.toString().padLeft(2, '0')}:${slot.end.minute.toString().padLeft(2, '0')}';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161616),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF262626)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => _showEventDetailSheet(slot),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Status Indicator Dot
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(top: 5, right: 10),
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.cancel_outlined, size: 16, color: Colors.redAccent),
-                      SizedBox(width: 8),
-                      Text('Hủy slot này', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                      Text(
+                        slot.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.access_time, size: 12, color: Color(0xFF8B949E)),
+                              const SizedBox(width: 4),
+                              Text(timeStr, style: const TextStyle(color: Color(0xFF8B949E), fontSize: 11)),
+                            ],
+                          ),
+                          if (slot.projectName != null && slot.projectName!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: projColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                slot.projectName!,
+                                style: TextStyle(color: projColor, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          if (slot.taskType != null && slot.taskType!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF222222),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                slot.taskType!,
+                                style: const TextStyle(color: Color(0xFF777777), fontSize: 9),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
+                const Icon(Icons.chevron_right, color: Color(0xFF444444), size: 18),
               ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

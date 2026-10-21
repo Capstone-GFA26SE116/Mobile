@@ -17,6 +17,13 @@ class MetanoiaApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppColors.background,
+        colorScheme: const ColorScheme.dark(
+          primary: AppColors.primary,
+          secondary: AppColors.primarySoft,
+          surface: AppColors.surface,
+          onPrimary: AppColors.onPrimary,
+          onSurface: AppColors.textPrimary,
+        ),
         fontFamily: 'Roboto',
       ),
       home: const AuthGate(),

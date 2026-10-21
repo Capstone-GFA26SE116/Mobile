@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/widgets/status_badge.dart';
+import '../../copilot/screens/copilot_screen.dart';
 import '../../onboarding/data/onboarding_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project_models.dart';
+import 'create_project_dialog.dart';
 import 'create_task_dialog.dart';
+import 'milestone_form_dialog.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final ProjectModel project;
@@ -15,12 +17,11 @@ class ProjectDetailScreen extends StatefulWidget {
   State<ProjectDetailScreen> createState() => _ProjectDetailScreenState();
 }
 
-class _ProjectDetailScreenState extends State<ProjectDetailScreen>
-    with SingleTickerProviderStateMixin {
+class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   final ProjectRepository _repository = ProjectRepository();
   final OnboardingRepository _onboardingRepo = OnboardingRepository();
 
-  late TabController _tabController;
+  late ProjectModel _project;
   List<TaskModel> _tasks = [];
   List<MilestoneModel> _milestones = [];
   final Map<String, List<SubTaskModel>> _subTasksMap = {};
@@ -28,21 +29,24 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
 
   String? _defaultDomainId;
   bool _isLoadingTasks = true;
-  bool _isLoadingMilestones = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _project = widget.project;
+    _refreshProject();
     _loadTasks();
     _loadMilestones();
     _loadDefaultDomain();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<void> _refreshProject() async {
+    try {
+      final p = await _repository.getProject(_project.id);
+      if (mounted) {
+        setState(() => _project = p);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadDefaultDomain() async {
@@ -57,7 +61,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   Future<void> _loadTasks() async {
     setState(() => _isLoadingTasks = true);
     try {
-      final tasks = await _repository.getProjectTasks(widget.project.id);
+      final tasks = await _repository.getProjectTasks(_project.id);
       if (mounted) {
         setState(() {
           _tasks = tasks;
@@ -70,18 +74,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   }
 
   Future<void> _loadMilestones() async {
-    setState(() => _isLoadingMilestones = true);
     try {
-      final list = await _repository.getMilestones(widget.project.id);
+      final list = await _repository.getMilestones(_project.id);
       if (mounted) {
-        setState(() {
-          _milestones = list;
-          _isLoadingMilestones = false;
-        });
+        setState(() => _milestones = list);
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingMilestones = false);
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadSubTasksForTask(String taskId) async {
@@ -95,6 +93,24 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     } catch (_) {}
   }
 
+  Future<void> _handleEditProject() async {
+    final updated = await showDialog<ProjectModel>(
+      context: context,
+      builder: (_) => ProjectFormDialog(project: _project),
+    );
+
+    if (updated != null && mounted) {
+      setState(() => _project = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Project "${updated.name}" updated successfully!'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _toggleDone(TaskModel task) async {
     final newStatus = task.status == 'Done' ? 'ToDo' : 'Done';
     try {
@@ -103,7 +119,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
       if (newStatus == 'Done' && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Đã hoàn thành! AI đang tự động học hệ số K_bias...'),
+            content: Text('Completed! AI is calibrating your K_bias factor...'),
             backgroundColor: AppColors.accentGreen,
             behavior: SnackBarBehavior.floating,
           ),
@@ -115,6 +131,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
           SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -126,20 +143,20 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Xác nhận xóa', style: TextStyle(color: AppColors.textPrimary)),
+        title: const Text('Confirm Deletion', style: TextStyle(color: AppColors.textPrimary)),
         content: Text(
-          'Bạn có chắc chắn muốn xóa tác vụ "${task.title}" không?',
+          'Are you sure you want to delete task "${task.title}"?',
           style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Xóa', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -152,8 +169,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Đã xóa tác vụ.'),
+              content: Text('Task deleted.'),
               backgroundColor: AppColors.primary,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -163,24 +181,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
             SnackBar(
               content: Text(e.toString().replaceAll('Exception: ', '')),
               backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
       }
     }
-  }
-
-  Future<void> _toggleSubTask(String taskId, SubTaskModel subTask) async {
-    final newStatus = subTask.status == 'Done' ? 'Pending' : 'Done';
-    try {
-      await _repository.updateSubTask(subTask.id, {
-        'title': subTask.title,
-        'estimatedMinutes': subTask.estimatedMinutes,
-        'orderIndex': subTask.orderIndex,
-        'status': newStatus,
-      });
-      _loadSubTasksForTask(taskId);
-    } catch (_) {}
   }
 
   Future<void> _showAddSubTaskDialog(String taskId) async {
@@ -191,7 +197,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Thêm Subtask', style: TextStyle(color: AppColors.textPrimary)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.surfaceBorder),
+        ),
+        title: const Text('Add Subtask', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -200,7 +210,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               autofocus: true,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
-                hintText: 'Tên bước thực hiện (Subtask)...',
+                hintText: 'Subtask title...',
                 hintStyle: TextStyle(color: AppColors.textMuted),
               ),
             ),
@@ -210,7 +220,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               keyboardType: TextInputType.number,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
-                labelText: 'Thời gian ước tính (phút)',
+                labelText: 'Duration (minutes)',
                 labelStyle: TextStyle(color: AppColors.textSecondary),
               ),
             ),
@@ -219,12 +229,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Thêm', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.onPrimary,
+            ),
+            child: const Text('Add'),
           ),
         ],
       ),
@@ -254,68 +267,100 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     }
   }
 
-  Future<void> _showAddMilestoneDialog() async {
-    final nameCtrl = TextEditingController();
-    final orderCtrl = TextEditingController(text: '${_milestones.length + 1}');
+  void _openCreateTaskDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => CreateTaskDialog(
+        projectId: _project.id,
+        initialMilestones: _milestones,
+        onTaskCreated: () {
+          _loadTasks();
+          _loadMilestones();
+        },
+      ),
+    );
+  }
 
-    final created = await showDialog<bool>(
+  Future<void> _openCreateMilestoneDialog() async {
+    final created = await showDialog<MilestoneModel>(
+      context: context,
+      builder: (_) => MilestoneFormDialog(
+        projectId: _project.id,
+        defaultOrderIndex: _milestones.length + 1,
+      ),
+    );
+
+    if (created != null && mounted) {
+      _loadMilestones();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Milestone "${created.name}" created successfully!'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openEditMilestoneDialog(MilestoneModel m) async {
+    final updated = await showDialog<MilestoneModel>(
+      context: context,
+      builder: (_) => MilestoneFormDialog(
+        projectId: _project.id,
+        milestone: m,
+      ),
+    );
+
+    if (updated != null && mounted) {
+      _loadMilestones();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Milestone "${updated.name}" updated successfully!'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteMilestone(MilestoneModel m) async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Thêm Cột Mốc (Milestone)', style: TextStyle(color: AppColors.textPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                hintText: 'Tên cột mốc (e.g. Giai đoạn 1: Thiết kế)',
-                hintStyle: TextStyle(color: AppColors.textMuted),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: orderCtrl,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: 'Thứ tự ưu tiên',
-                labelStyle: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.surfaceBorder),
+        ),
+        title: const Text('Confirm Deletion', style: TextStyle(color: AppColors.textPrimary)),
+        content: Text(
+          'Are you sure you want to delete milestone "${m.name}"?',
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Tạo', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
 
-    if (created == true && nameCtrl.text.trim().isNotEmpty) {
-      final order = int.tryParse(orderCtrl.text) ?? 1;
+    if (confirm == true) {
       try {
-        await _repository.createMilestone(
-          widget.project.id,
-          nameCtrl.text.trim(),
-          order,
-          null,
-        );
+        await _repository.deleteMilestone(m.id);
         _loadMilestones();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Đã tạo cột mốc thành công!'),
-              backgroundColor: AppColors.accentGreen,
+              content: Text('Milestone deleted.'),
+              backgroundColor: AppColors.primary,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -325,6 +370,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
             SnackBar(
               content: Text(e.toString().replaceAll('Exception: ', '')),
               backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -332,248 +378,818 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     }
   }
 
-  Future<void> _deleteMilestone(MilestoneModel m) async {
-    try {
-      await _repository.deleteMilestone(m.id);
-      _loadMilestones();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã xóa cột mốc.'),
-            backgroundColor: AppColors.primary,
-          ),
-        );
-      }
-    } catch (_) {}
+  int get _overdueCount {
+    final now = DateTime.now();
+    return _tasks.where((t) {
+      if (t.isDone) return false;
+      if (t.deadline == null) return false;
+      return t.deadline!.isBefore(now);
+    }).length;
   }
 
   @override
   Widget build(BuildContext context) {
+    final totalDays = _project.totalDurationDays;
+    final remainingDays = _project.daysLeft;
+    final progressPct = (_project.timelineProgress * 100).round();
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          widget.project.name,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primary,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textMuted,
-          tabs: [
-            Tab(text: 'Tác vụ (${_tasks.length})'),
-            Tab(text: 'Cột mốc (${_milestones.length})'),
-          ],
-        ),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primary,
-        onPressed: () {
-          if (_tabController.index == 0) {
-            showDialog(
-              context: context,
-              builder: (_) => CreateTaskDialog(
-                projectId: widget.project.id,
-                onTaskCreated: _loadTasks,
-              ),
-            );
-          } else {
-            _showAddMilestoneDialog();
-          }
-        },
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: Text(
-          _tabController.index == 0 ? 'Thêm Task' : 'Thêm Cột Mốc',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+        foregroundColor: AppColors.onPrimary,
+        elevation: 2,
+        onPressed: _openCreateTaskDialog,
+        icon: const Icon(Icons.add, size: 18),
+        label: const Text('Add Task', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-            // TAB 1: TASKS
-            _isLoadingTasks
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                : RefreshIndicator(
-                    color: AppColors.primary,
-                    onRefresh: _loadTasks,
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      children: [
-                        _buildProjectHeader(),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          backgroundColor: AppColors.surface,
+          onRefresh: () async {
+            await Future.wait([_refreshProject(), _loadTasks(), _loadMilestones()]);
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              // 1. Top Bar (Back + Breadcrumb + Edit + Continue)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary, size: 20),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Row(
                           children: [
                             const Text(
-                              'Danh sách công việc',
+                              'PROJECTS',
                               style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 16,
+                                color: AppColors.textMuted,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
                               ),
                             ),
-                            Text(
-                              '${_tasks.where((t) => t.status == 'Done').length}/${_tasks.length} xong',
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 13,
+                            const Text(
+                              '  /  ',
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                            ),
+                            Flexible(
+                              child: Text(
+                                _project.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        if (_tasks.isEmpty)
-                          Container(
-                            padding: const EdgeInsets.all(32),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              'Chưa có task nào trong dự án này.\nBấm "+ Thêm Task" để tạo mới!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.textMuted),
+                      ),
+                      // Edit Button (PUT /api/projects/{projectId})
+                      OutlinedButton.icon(
+                        onPressed: _handleEditProject,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          backgroundColor: const Color(0xFF141414),
+                          side: const BorderSide(color: AppColors.surfaceBorder),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textSecondary),
+                        label: const Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Continue Button
+                      ElevatedButton.icon(
+                        onPressed: _openCreateTaskDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.onPrimary,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.rocket_launch, size: 14),
+                        label: const Text('Continue', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 2. Hero Card (Status pill, Short ID, Title, Description)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _project.status.toUpperCase(),
+                                    style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          )
-                        else
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _tasks.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final task = _tasks[index];
-                              return _buildTaskItem(task);
-                            },
+                            const SizedBox(width: 8),
+                            Text(
+                              _project.shortId,
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _project.name,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
                           ),
-                        const SizedBox(height: 80),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _project.description != null && _project.description!.isNotEmpty
+                              ? _project.description!
+                              : 'No description provided.',
+                          style: TextStyle(
+                            color: _project.description != null && _project.description!.isNotEmpty
+                                ? AppColors.textSecondary
+                                : AppColors.textMuted,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
+                        ),
                       ],
                     ),
                   ),
+                ),
+              ),
 
-            // TAB 2: MILESTONES
-            _isLoadingMilestones
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                : RefreshIndicator(
-                    color: AppColors.primary,
-                    onRefresh: _loadMilestones,
-                    child: _milestones.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+              // 3. KPI Strip (4 Stat Tiles: START, DEADLINE, DURATION, REMAINING)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = (constraints.maxWidth - 10) / 2;
+                      return Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          _buildStatTile(
+                            width: width,
+                            label: 'START',
+                            value: _project.formattedStartDate,
+                            icon: Icons.calendar_month_outlined,
+                            iconColor: AppColors.primary,
+                          ),
+                          _buildStatTile(
+                            width: width,
+                            label: 'DEADLINE',
+                            value: _project.formattedDeadline,
+                            icon: Icons.event_outlined,
+                            iconColor: AppColors.primary,
+                          ),
+                          _buildStatTile(
+                            width: width,
+                            label: 'DURATION',
+                            value: '$totalDays days',
+                            icon: Icons.schedule_outlined,
+                            iconColor: AppColors.primary,
+                          ),
+                          _buildStatTile(
+                            width: width,
+                            label: 'REMAINING',
+                            value: remainingDays >= 0 ? '$remainingDays days' : 'Overdue',
+                            icon: Icons.hourglass_empty_outlined,
+                            iconColor: remainingDays < 0 ? const Color(0xFFFF6B6B) : AppColors.primary,
+                            valueColor: remainingDays < 0 ? const Color(0xFFFF6B6B) : null,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+              // 4. Timeline Card (Progress Bar with "Today" marker)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.surfaceBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.flag_outlined, size: 48, color: AppColors.textMuted),
-                                const SizedBox(height: 12),
                                 const Text(
-                                  'Chưa có cột mốc (milestone) nào.\nBấm "+ Thêm Cột Mốc" để tạo mới!',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: AppColors.textSecondary),
+                                  'TIMELINE',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'In progress',
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
-                          )
-                        : ListView.separated(
-                            padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 80),
-                            itemCount: _milestones.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final m = _milestones[index];
-                              return _buildMilestoneCard(m);
-                            },
-                          ),
+                            Text(
+                              '$progressPct%',
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Progress Bar with "Today" Marker
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final totalWidth = constraints.maxWidth;
+                            final todayRatio = _project.timelineProgress;
+                            final todayPos = (totalWidth * todayRatio).clamp(24.0, totalWidth - 24.0);
+
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                // Background Bar
+                                Container(
+                                  height: 6,
+                                  width: totalWidth,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2E2E2E),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                                // Fill Bar
+                                Container(
+                                  height: 6,
+                                  width: totalWidth * todayRatio,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                                // Today marker chip
+                                Positioned(
+                                  top: 10,
+                                  left: todayPos - 18,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF141414),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: AppColors.surfaceBorder),
+                                    ),
+                                    child: const Text(
+                                      'Today',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Foot dates
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _project.formattedStartDate,
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                            ),
+                            Text(
+                              _project.formattedDeadline,
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-          ],
+                ),
+              ),
+
+              // 5. Milestones Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'MILESTONES',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_milestones.length} milestones',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _openCreateMilestoneDialog,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.surfaceBorder),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.add, size: 14, color: AppColors.primary),
+                        label: const Text('Add Milestone', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Milestones list / empty
+              if (_milestones.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.flag_outlined, size: 22, color: AppColors.textMuted),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'No milestones yet. Milestones represent key phases.',
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _openCreateMilestoneDialog,
+                            child: const Text('+ Add', style: TextStyle(color: AppColors.primary, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final m = _milestones[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _buildMilestoneCard(m),
+                        );
+                      },
+                      childCount: _milestones.length,
+                    ),
+                  ),
+                ),
+
+              // 6. Tasks Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'TASKS',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_tasks.length} tasks',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_overdueCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFF6B6B).withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            '! $_overdueCount OVERDUE',
+                            style: const TextStyle(
+                              color: Color(0xFFFF6B6B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 6. Tasks List
+              if (_isLoadingTasks)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                  ),
+                )
+              else if (_tasks.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      alignment: Alignment.center,
+                      child: Column(
+                        children: [
+                          const Icon(Icons.playlist_add, size: 36, color: AppColors.textMuted),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'No tasks in this project yet.',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            onPressed: _openCreateTaskDialog,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.onPrimary,
+                            ),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Add first task'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final task = _tasks[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _buildTaskCard(task),
+                        );
+                      },
+                      childCount: _tasks.length,
+                    ),
+                  ),
+                ),
+
+              // 7. Choose your flow (Direction cards)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 80),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'CHOOSE YOUR FLOW',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'How do you want to decompose this project?',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          // Card 1: Manual decompose
+                          Expanded(
+                            child: InkWell(
+                              onTap: _openCreateTaskDialog,
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: const Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.checklist, color: AppColors.primary, size: 20),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Manual decompose',
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Create tasks & subtasks yourself.',
+                                      style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+
+                          // Card 2: AI auto-decompose
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => CopilotScreen(
+                                      initialTaskId: _tasks.isNotEmpty ? _tasks.first.id : null,
+                                      taskTitle: _project.name,
+                                    ),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: const Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'AI auto-decompose',
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'AI schedules tasks automatically.',
+                                      style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildProjectHeader() {
+  Widget _buildStatTile({
+    required double width,
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+    Color? valueColor,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.surfaceBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.project.name,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141414),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.surfaceBorder),
+            ),
+            child: Icon(icon, size: 16, color: iconColor),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
+                    color: AppColors.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: valueColor ?? AppColors.textPrimary,
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              StatusBadge(status: widget.project.status),
-            ],
-          ),
-          if (widget.project.description != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              widget.project.description!,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTaskItem(TaskModel task) {
-    final isDone = task.status == 'Done';
+  Widget _buildTaskCard(TaskModel task) {
+    final isDone = task.isDone;
     final isExpanded = _expandedTaskIds.contains(task.id);
     final subtasks = _subTasksMap[task.id] ?? [];
+
+    String dateStr = 'No date';
+    if (task.deadline != null) {
+      final m = ProjectModel.months[task.deadline!.month - 1];
+      dateStr = '$m ${task.deadline!.day}';
+    }
+
+    final durationMins = task.estimatedMinutes ?? task.aiEstimatedMinutes ?? 30;
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDone ? AppColors.accentGreen.withOpacity(0.3) : AppColors.surfaceBorder,
+          color: isExpanded ? AppColors.primary : AppColors.surfaceBorder,
+          width: isExpanded ? 1.2 : 1.0,
         ),
       ),
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    isDone ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: isDone ? AppColors.accentGreen : AppColors.textMuted,
-                    size: 22,
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (isExpanded) {
+                  _expandedTaskIds.remove(task.id);
+                } else {
+                  _expandedTaskIds.add(task.id);
+                  _loadSubTasksForTask(task.id);
+                }
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  // Dot indicator
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: isDone ? AppColors.primary : AppColors.textMuted,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                  onPressed: () => _toggleDone(task),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        if (isExpanded) {
-                          _expandedTaskIds.remove(task.id);
-                        } else {
-                          _expandedTaskIds.add(task.id);
-                          _loadSubTasksForTask(task.id);
-                        }
-                      });
-                    },
+                  const SizedBox(width: 12),
+
+                  // Title & Subtitle
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -582,169 +1198,186 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                           style: TextStyle(
                             color: isDone ? AppColors.textMuted : AppColors.textPrimary,
                             fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.bold,
                             decoration: isDone ? TextDecoration.lineThrough : null,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: task.taskType == 'Fixed'
-                                    ? Colors.orange.withOpacity(0.15)
-                                    : AppColors.primary.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                task.taskType == 'Fixed' ? 'Fixed Meeting' : 'Flexible',
-                                style: TextStyle(
-                                  color: task.taskType == 'Fixed' ? Colors.orange : AppColors.primary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            Text(
+                              task.taskType,
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.calendar_today_outlined, size: 11, color: AppColors.primary),
+                            const SizedBox(width: 4),
+                            Text(
+                              dateStr,
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            if (task.estimatedMinutes != null)
-                              Text(
-                                '${task.estimatedMinutes} phút',
-                                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                              ),
-                            const Spacer(),
-                            Icon(
-                              isExpanded ? Icons.expand_less : Icons.expand_more,
-                              size: 18,
-                              color: AppColors.textMuted,
+                            const Icon(Icons.timer_outlined, size: 11, color: AppColors.textMuted),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${durationMins}m',
+                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                             ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                StatusBadge(status: task.status),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 16, color: AppColors.textMuted),
-                  color: AppColors.surface,
-                  onSelected: (val) {
-                    if (val == 'delete') {
-                      _deleteTask(task);
-                    } else if (val == 'subtask') {
-                      _showAddSubTaskDialog(task.id);
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'subtask',
-                      child: Row(
-                        children: [
-                          Icon(Icons.add_task, size: 16, color: AppColors.primary),
-                          SizedBox(width: 8),
-                          Text('Thêm Subtask', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                        ],
+
+                  // Status badge (TODO / DONE)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141414),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.surfaceBorder),
+                    ),
+                    child: Text(
+                      isDone ? 'DONE' : 'TODO',
+                      style: TextStyle(
+                        color: isDone ? AppColors.primary : AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
-                          SizedBox(width: 8),
-                          Text('Xóa task', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Chevron
+                  Icon(
+                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: AppColors.textMuted,
+                  ),
+                ],
+              ),
             ),
           ),
 
-          // SUBTASKS SECTION IF EXPANDED
+          // Expanded Subtasks Content
           if (isExpanded)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               decoration: const BoxDecoration(
-                color: Color(0xFF0F1522),
+                color: Color(0xFF121212),
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Divider(color: AppColors.surfaceBorder, height: 1),
+                  const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Các bước chi tiết (Subtasks):',
+                        'Subtasks',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      TextButton.icon(
-                        style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                        onPressed: () => _showAddSubTaskDialog(task.id),
-                        icon: const Icon(Icons.add, size: 14, color: AppColors.primary),
-                        label: const Text(
-                          'Thêm bước',
-                          style: TextStyle(fontSize: 11, color: AppColors.primary),
+                      InkWell(
+                        onTap: () => _showAddSubTaskDialog(task.id),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add, size: 14, color: AppColors.primary),
+                            SizedBox(width: 4),
+                            Text(
+                              'Add subtask',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
                   if (subtasks.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Chưa có subtask nào. Bấm "Thêm bước" để chia nhỏ công việc.',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.check_box_outline_blank, size: 14, color: AppColors.textMuted),
+                          SizedBox(width: 8),
+                          Text(
+                            'No subtasks yet.',
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                          ),
+                        ],
                       ),
                     )
                   else
                     ...subtasks.map((st) {
-                      final stDone = st.isDone;
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
-                            InkWell(
-                              onTap: () => _toggleSubTask(task.id, st),
-                              child: Icon(
-                                stDone ? Icons.check_box : Icons.check_box_outline_blank,
-                                size: 16,
-                                color: stDone ? AppColors.accentGreen : AppColors.textMuted,
-                              ),
+                            Icon(
+                              st.isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+                              size: 14,
+                              color: st.isDone ? AppColors.primary : AppColors.textMuted,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 st.title,
                                 style: TextStyle(
-                                  color: stDone ? AppColors.textMuted : AppColors.textPrimary,
+                                  color: st.isDone ? AppColors.textMuted : AppColors.textPrimary,
                                   fontSize: 12,
-                                  decoration: stDone ? TextDecoration.lineThrough : null,
+                                  decoration: st.isDone ? TextDecoration.lineThrough : null,
                                 ),
                               ),
                             ),
                             Text(
-                              '${st.estimatedMinutes}p',
+                              '${st.estimatedMinutes}m',
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 14, color: AppColors.textMuted),
-                              onPressed: () async {
-                                await _repository.deleteSubTask(st.id);
-                                _loadSubTasksForTask(task.id);
-                              },
                             ),
                           ],
                         ),
                       );
                     }),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _toggleDone(task),
+                        icon: Icon(
+                          isDone ? Icons.undo : Icons.check,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
+                        label: Text(
+                          isDone ? 'Mark as Todo' : 'Mark as Done',
+                          style: const TextStyle(color: AppColors.primary, fontSize: 11),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: () => _deleteTask(task),
+                        icon: const Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
+                        label: const Text(
+                          'Delete',
+                          style: TextStyle(color: Colors.redAccent, fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -754,59 +1387,155 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   }
 
   Widget _buildMilestoneCard(MilestoneModel m) {
+    Color statusColor;
+    switch (m.status.toLowerCase()) {
+      case 'inprogress':
+        statusColor = Colors.orange;
+        break;
+      case 'delivered':
+      case 'approved':
+        statusColor = AppColors.primary;
+        break;
+      case 'inrevision':
+        statusColor = Colors.purpleAccent;
+        break;
+      case 'planned':
+      default:
+        statusColor = AppColors.textSecondary;
+        break;
+    }
+
+    String dueStr = 'No due date';
+    if (m.dueDate != null && m.dueDate!.isNotEmpty) {
+      final parsed = DateTime.tryParse(m.dueDate!);
+      if (parsed != null) {
+        final monthName = ProjectModel.months[parsed.month - 1];
+        dueStr = '$monthName ${parsed.day}, ${parsed.year}';
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.surfaceBorder),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '${m.orderIndex}',
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            // Order index badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141414),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: Text(
+                '#${m.orderIndex}',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  m.name,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+            const SizedBox(width: 12),
+
+            // Milestone info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    m.name,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      // Status badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          m.status,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Due date
+                      const Icon(Icons.event_outlined, size: 12, color: AppColors.textMuted),
+                      const SizedBox(width: 4),
+                      Text(
+                        dueStr,
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                      ),
+                      if (m.revisionCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          'Rev: ${m.revisionCount}',
+                          style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Edit / Delete Menu
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textMuted),
+              color: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: const BorderSide(color: AppColors.surfaceBorder),
+              ),
+              onSelected: (val) {
+                if (val == 'edit') {
+                  _openEditMilestoneDialog(m);
+                } else if (val == 'delete') {
+                  _deleteMilestone(m);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 16, color: AppColors.textSecondary),
+                      SizedBox(width: 8),
+                      Text('Edit Milestone', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  m.dueDate != null ? 'Hạn: ${m.dueDate}' : 'Chưa đặt ngày đến hạn',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
+                      SizedBox(width: 8),
+                      Text('Delete Milestone', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-          StatusBadge(status: m.status),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textMuted),
-            onPressed: () => _deleteMilestone(m),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

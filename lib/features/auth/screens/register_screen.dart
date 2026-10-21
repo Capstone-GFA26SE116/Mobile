@@ -3,8 +3,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/metanoia_logo.dart';
 import '../data/auth_repository.dart';
-import '../widgets/auth_hero_card.dart';
 import 'auth_gate.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -24,8 +24,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _showPassword = false;
   bool _showConfirmPassword = false;
-  bool _agreedToTerms = false;
+  bool _agreedToTerms = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -37,7 +38,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
+    setState(() => _isGoogleLoading = true);
 
     try {
       final authResponse = await _authRepository.signInWithGoogle();
@@ -45,7 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Chào mừng ${authResponse.fullName} đến với Metanoia!'),
+          content: Text('Welcome ${authResponse.fullName} to Metanoia!'),
           backgroundColor: AppColors.voltagentPrimary,
           behavior: SnackBarBehavior.floating,
         ),
@@ -68,17 +69,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
-  void _handleManualRegister() {
+  Future<void> _handleManualRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng đồng ý với Điều khoản dịch vụ và Chính sách bảo mật.'),
+          content: Text('Please agree to the Terms of Service and Privacy Policy.'),
           backgroundColor: Colors.orangeAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -86,486 +87,408 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF161616),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.voltagentHairline),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.info_outline, color: AppColors.voltagentPrimary),
-            SizedBox(width: 8),
-            Text(
-              'Cổng Đăng Ký METANOIA',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: const Text(
-          'Đăng ký tài khoản thủ công bằng Email đang được hoàn thiện ở Backend. Hiện tại hệ thống hỗ trợ kích hoạt không gian làm việc tức thì thông qua "Đăng ký với Google".\n\nBạn có muốn đăng ký nhanh với Google ngay bây giờ?',
-          style: TextStyle(color: AppColors.voltagentBody, fontSize: 13, height: 1.45),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Để sau', style: TextStyle(color: AppColors.voltagentMute)),
+    setState(() => _isLoading = true);
+
+    try {
+      await _authRepository.registerWithEmail(
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      // Route to Login with prefilled email and justRegistered = true flag
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(
+            initialEmail: _emailController.text.trim(),
+            justRegistered: true,
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _handleGoogleSignIn();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.voltagentPrimary,
-              foregroundColor: AppColors.voltagentOnPrimary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Đăng ký bằng Google', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+            style: const TextStyle(color: Colors.white),
           ),
-        ],
-      ),
-    );
+          backgroundColor: Colors.redAccent.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.voltagentCanvas,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildTopBar(),
-              const SizedBox(height: 22),
-              const AuthHeroCard(),
-              const SizedBox(height: 26),
-              _buildRegisterForm(),
-              const SizedBox(height: 28),
-              _buildFooter(),
-            ],
-          ),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-    );
-  }
-
-  Widget _buildTopBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            const MetanoiaLogo(size: 30),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.voltagentPrimary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.voltagentPrimary.withOpacity(0.3)),
-              ),
-              child: const Text(
-                'v2.4 Cognitive Engine',
-                style: TextStyle(
-                  color: AppColors.voltagentPrimary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-        InkWell(
-          onTap: () => Navigator.of(context).pop(),
-          child: RichText(
-            text: const TextSpan(
-              style: TextStyle(fontSize: 12.5),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextSpan(
-                  text: 'Đã có tài khoản? ',
-                  style: TextStyle(color: AppColors.voltagentBody),
+                // 1. Logo & Header
+                const Center(
+                  child: MetanoiaLogo(size: 52),
                 ),
-                TextSpan(
-                  text: 'Đăng nhập',
+                const SizedBox(height: 18),
+                const Text(
+                  'CREATE ACCOUNT',
                   style: TextStyle(
                     color: AppColors.voltagentPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Get Started with METANOIA',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRegisterForm() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.voltagentHairline),
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Pill Eyebrow Badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.voltagentPrimary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.voltagentPrimary.withOpacity(0.35)),
-              ),
-              child: const Text(
-                'CỔNG ĐĂNG KÝ',
-                style: TextStyle(
-                  color: AppColors.voltagentPrimary,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Tạo không gian làm việc',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Chỉ mất một phút. Lịch thông minh sẽ bắt đầu học thói quen của bạn từ ngày đầu tiên.',
-              style: TextStyle(
-                color: AppColors.voltagentBody,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Google SSO Button
-            _buildGoogleButton(),
-            const SizedBox(height: 8),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.circle, color: AppColors.voltagentPrimary, size: 7),
-                SizedBox(width: 6),
-                Text(
-                  'Đồng bộ tức thì Google Calendar',
+                const SizedBox(height: 6),
+                const Text(
+                  'Coordinate your working rhythm and defeat planning fallacy.',
                   style: TextStyle(
-                    color: AppColors.voltagentMute,
-                    fontSize: 12,
+                    color: AppColors.voltagentBody,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
-            // Divider "HOẶC VỚI EMAIL"
-            Row(
-              children: [
-                const Expanded(child: Divider(color: AppColors.voltagentHairline, thickness: 1)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'HOẶC VỚI EMAIL',
-                    style: TextStyle(
-                      color: AppColors.voltagentMute,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                const Expanded(child: Divider(color: AppColors.voltagentHairline, thickness: 1)),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Họ và tên
-            _buildLabel('Họ và tên'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _nameController,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: _buildInputDecoration(
-                hintText: 'Nguyễn Văn A',
-                suffixIcon: const Icon(Icons.person_outline, color: AppColors.voltagentMute, size: 18),
-              ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập họ và tên' : null,
-            ),
-            const SizedBox(height: 14),
-
-            // Email
-            _buildLabel('Email'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: _buildInputDecoration(
-                hintText: 'nguyenvana@gmail.com',
-                suffixIcon: const Icon(Icons.alternate_email, color: AppColors.voltagentMute, size: 18),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Vui lòng nhập email';
-                if (!v.contains('@') || !v.contains('.')) return 'Email không hợp lệ';
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-
-            // Mật khẩu
-            _buildLabel('Mật khẩu'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _passwordController,
-              obscureText: !_showPassword,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: _buildInputDecoration(
-                hintText: '••••••••••••',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    color: AppColors.voltagentMute,
-                    size: 18,
-                  ),
-                  onPressed: () => setState(() => _showPassword = !_showPassword),
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
-                return null;
-              },
-            ),
-            const Padding(
-              padding: EdgeInsets.only(top: 4, left: 2),
-              child: Text(
-                'Ít nhất 8 ký tự.',
-                style: TextStyle(color: AppColors.voltagentMute, fontSize: 11),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Xác nhận mật khẩu
-            _buildLabel('Xác nhận mật khẩu'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _confirmPasswordController,
-              obscureText: !_showConfirmPassword,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: _buildInputDecoration(
-                hintText: '••••••••••••',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _showConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    color: AppColors.voltagentMute,
-                    size: 18,
-                  ),
-                  onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
-                ),
-              ),
-              validator: (v) {
-                if (v != _passwordController.text) return 'Mật khẩu xác nhận không khớp';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Checkbox Terms
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Checkbox(
-                    value: _agreedToTerms,
-                    activeColor: AppColors.voltagentPrimary,
-                    checkColor: AppColors.voltagentOnPrimary,
-                    side: const BorderSide(color: AppColors.voltagentHairlineLight),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: RichText(
-                    text: const TextSpan(
-                      style: TextStyle(color: AppColors.voltagentBody, fontSize: 12, height: 1.4),
-                      children: [
-                        TextSpan(text: 'Tôi đồng ý với '),
-                        TextSpan(
-                          text: 'Điều khoản dịch vụ',
-                          style: TextStyle(color: AppColors.voltagentPrimary, fontWeight: FontWeight.w600),
+                // 2. Registration Form
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      // Full Name
+                      TextFormField(
+                        controller: _nameController,
+                        style: const TextStyle(color: AppColors.voltagentInk, fontSize: 14),
+                        decoration: _buildInputDecoration(
+                          label: 'Full Name',
+                          hint: 'Alex Johnson',
+                          prefixIcon: Icons.person_outline,
                         ),
-                        TextSpan(text: ' và '),
-                        TextSpan(
-                          text: 'Chính sách bảo mật',
-                          style: TextStyle(color: AppColors.voltagentPrimary, fontWeight: FontWeight.w600),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your full name';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Email
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        style: const TextStyle(color: AppColors.voltagentInk, fontSize: 14),
+                        decoration: _buildInputDecoration(
+                          label: 'Email',
+                          hint: 'name@example.com',
+                          prefixIcon: Icons.email_outlined,
                         ),
-                        TextSpan(text: ' của METANOIA.'),
-                      ],
-                    ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your email address';
+                          }
+                          if (!value.contains('@') || !value.contains('.')) {
+                            return 'Please enter a valid email address';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Password
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: !_showPassword,
+                        style: const TextStyle(color: AppColors.voltagentInk, fontSize: 14),
+                        decoration: _buildInputDecoration(
+                          label: 'Password',
+                          hint: 'At least 8 characters',
+                          prefixIcon: Icons.lock_outline,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _showPassword ? Icons.visibility_off : Icons.visibility,
+                              color: AppColors.voltagentMute,
+                              size: 18,
+                            ),
+                            onPressed: () => setState(() => _showPassword = !_showPassword),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a password';
+                          }
+                          if (value.length < 8) {
+                            return 'Password must be at least 8 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Confirm Password
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: !_showConfirmPassword,
+                        style: const TextStyle(color: AppColors.voltagentInk, fontSize: 14),
+                        decoration: _buildInputDecoration(
+                          label: 'Confirm Password',
+                          hint: 'Re-enter your password',
+                          prefixIcon: Icons.lock_reset,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                              color: AppColors.voltagentMute,
+                              size: 18,
+                            ),
+                            onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          if (value != _passwordController.text) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 22),
 
-            // Nút Tạo tài khoản CTA
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _handleManualRegister,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.voltagentPrimary,
-                  foregroundColor: AppColors.voltagentOnPrimary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                const SizedBox(height: 14),
+
+                // Terms Checkbox
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Tạo tài khoản',
-                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: _agreedToTerms,
+                        activeColor: AppColors.voltagentPrimary,
+                        checkColor: AppColors.voltagentOnPrimary,
+                        side: const BorderSide(color: AppColors.voltagentHairline),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
+                      ),
                     ),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward, size: 16),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'I agree to the Terms of Service and Cognitive Data Privacy Policy of METANOIA.',
+                        style: TextStyle(
+                          color: AppColors.voltagentBody,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildGoogleButton() {
-    return InkWell(
-      onTap: _isLoading ? null : _handleGoogleSignIn,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: BoxDecoration(
-          color: AppColors.voltagentCanvasSoft,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.voltagentHairlineLight),
-        ),
-        child: _isLoading
-            ? const Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                const SizedBox(height: 22),
+
+                // Primary Register Button
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _handleManualRegister,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.voltagentPrimary,
+                    foregroundColor: AppColors.voltagentOnPrimary,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.voltagentOnPrimary,
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Create Account',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, size: 18),
+                          ],
+                        ),
                 ),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FaIcon(FontAwesomeIcons.google, size: 16, color: Colors.redAccent),
-                  SizedBox(width: 10),
-                  Text(
-                    'Đăng ký với Google',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+
+                const SizedBox(height: 18),
+
+                // Social Divider
+                Row(
+                  children: const [
+                    Expanded(child: Divider(color: AppColors.voltagentHairline, thickness: 1)),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14),
+                      child: Text(
+                        'OR CONTINUE WITH',
+                        style: TextStyle(
+                          color: AppColors.voltagentMute,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: AppColors.voltagentHairline, thickness: 1)),
+                  ],
+                ),
+
+                const SizedBox(height: 18),
+
+                OutlinedButton(
+                  onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: const Color(0xFF141414),
+                    side: const BorderSide(color: AppColors.voltagentHairline),
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                ],
-              ),
-      ),
-    );
-  }
+                  child: _isGoogleLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.voltagentPrimary,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            FaIcon(
+                              FontAwesomeIcons.google,
+                              color: Colors.white,
+                              size: 17,
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Continue with Google',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
 
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: AppColors.voltagentBody,
-        fontSize: 12.5,
-        fontWeight: FontWeight.w500,
-      ),
-    );
-  }
+                const SizedBox(height: 24),
 
-  InputDecoration _buildInputDecoration({required String hintText, Widget? suffixIcon}) {
-    return InputDecoration(
-      hintText: hintText,
-      hintStyle: const TextStyle(color: Color(0xFF555555), fontSize: 13),
-      filled: true,
-      fillColor: AppColors.voltagentCanvasSoft,
-      suffixIcon: suffixIcon,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.voltagentHairlineLight),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.voltagentHairlineLight),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.voltagentPrimary),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.redAccent.shade200),
-      ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Column(
-      children: [
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.circle, color: AppColors.voltagentPrimary, size: 7),
-            SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Dành riêng cho sinh viên kỹ thuật, nghiên cứu sinh và các chuyên gia độc lập.',
-                style: TextStyle(color: AppColors.voltagentMute, fontSize: 11),
-                textAlign: TextAlign.center,
-              ),
+                // Switch to Sign In
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Already have an account? ',
+                      style: TextStyle(color: AppColors.voltagentBody, fontSize: 13),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: const Text(
+                        'Sign In',
+                        style: TextStyle(
+                          color: AppColors.voltagentPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Được bảo vệ bởi giao thức ẩn danh hóa dữ liệu METANOIA. Không quảng cáo, không thương mại hóa dữ liệu cá nhân.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Color(0xFF555555),
-            fontSize: 10.5,
-            height: 1.45,
           ),
         ),
-        const SizedBox(height: 16),
-      ],
+      ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration({
+    required String label,
+    required String hint,
+    required IconData prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AppColors.voltagentMute, fontSize: 13),
+      hintText: hint,
+      hintStyle: TextStyle(
+        color: AppColors.voltagentMute.withValues(alpha: 0.5),
+        fontSize: 13,
+      ),
+      filled: true,
+      fillColor: AppColors.voltagentCanvasSoft,
+      prefixIcon: Icon(prefixIcon, color: AppColors.voltagentMute, size: 19),
+      suffixIcon: suffixIcon,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.voltagentHairline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.voltagentHairline),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.voltagentPrimary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.redAccent.shade700),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.redAccent.shade700, width: 1.5),
+      ),
     );
   }
 }

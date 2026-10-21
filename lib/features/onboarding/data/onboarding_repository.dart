@@ -20,7 +20,7 @@ class OnboardingRepository {
       }
       return [];
     } on DioException catch (e) {
-      throw Exception('Không thể lấy danh sách Domain: ${e.message}');
+      throw Exception('Failed to load domains: ${e.message}');
     }
   }
 
@@ -31,11 +31,11 @@ class OnboardingRepository {
         data: request.toJson(),
       );
       if (response.statusCode != 200) {
-        throw Exception('Lỗi nộp Onboarding: ${response.statusCode}');
+        throw Exception('Onboarding submission failed: ${response.statusCode}');
       }
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi hoàn thành khảo sát: $msg');
+      throw Exception('Onboarding failed: $msg');
     }
   }
 

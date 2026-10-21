@@ -91,45 +91,45 @@ class ProfileRepository {
       SubscriptionPlanItem(
         id: 'starter',
         code: 'STARTER',
-        name: 'Gói Cơ Bản (Starter)',
+        name: 'Starter Plan',
         priceVnd: 0,
-        billingCycle: 'Vĩnh viễn',
-        description: 'Tối ưu cho người mới bắt đầu thiết lập thói quen làm việc nhận thức.',
+        billingCycle: 'Lifetime',
+        description: 'Best for individuals getting started with cognitive workflow optimization.',
         features: [
-          'Đồng bộ 1 tài khoản Google Calendar',
-          'Theo dõi hệ số Kbias cá nhân',
-          'Tối đa 3 dự án đồng thời',
-          'AI Copilot (5 lượt / ngày)',
+          'Sync 1 Google Calendar account',
+          'Track personal Kbias factor',
+          'Up to 3 active projects',
+          'AI Copilot (5 requests / day)',
         ],
       ),
       SubscriptionPlanItem(
         id: 'pro',
         code: 'PRO',
-        name: 'Gói Chuyên Nghiệp (Pro)',
+        name: 'Pro Plan',
         priceVnd: 149000,
-        billingCycle: 'tháng',
-        description: 'Đầy đủ sức mạnh Neural Engine v2.4 và bảo vệ Deep Work không giới hạn.',
+        billingCycle: 'month',
+        description: 'Full Neural Engine v2.4 power and unlimited Deep Work protection.',
         features: [
-          'Không giới hạn dự án & tác vụ',
-          'Tự động hóa lập lịch AI Schedule Propose',
-          'Tự động học bù trừ thời gian tự thích nghi',
-          'AI Copilot phân rã subtask không giới hạn',
-          'Hỗ trợ đệm nghỉ sinh học đa kênh',
+          'Unlimited projects & tasks',
+          'Automated AI Schedule Propose',
+          'Self-adaptive buffer & duration learning',
+          'Unlimited AI Copilot task breakdown',
+          'Multi-channel biological buffer support',
         ],
         isPopular: true,
       ),
       SubscriptionPlanItem(
         id: 'team',
         code: 'TEAM',
-        name: 'Gói Nhóm (Team)',
+        name: 'Team Plan',
         priceVnd: 399000,
-        billingCycle: 'tháng',
-        description: 'Điều phối nhận thức nhóm và giảm thiểu tải nhận thức cộng tác.',
+        billingCycle: 'month',
+        description: 'Coordinate cognitive work across teams and reduce collaborative overhead.',
         features: [
-          'Tất cả tính năng của gói Pro',
-          'Phân bổ tài nguyên nhóm thông minh',
-          'Báo cáo hiệu suất nhận thức tuần/tháng',
-          'Dedicated SLA & Hỗ trợ ưu tiên 24/7',
+          'All features of Pro Plan',
+          'Smart team resource allocation',
+          'Weekly/monthly cognitive velocity reports',
+          'Dedicated SLA & 24/7 priority support',
         ],
       ),
     ];
@@ -144,10 +144,10 @@ class ProfileRepository {
       if (response.statusCode == 200 && response.data != null) {
         return CheckoutResultModel.fromJson(response.data as Map<String, dynamic>);
       }
-      throw Exception('Không tạo được liên kết thanh toán');
+      throw Exception('Failed to generate payment checkout link');
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi thanh toán: $msg');
+      throw Exception('Payment error: $msg');
     }
   }
 
@@ -156,7 +156,7 @@ class ProfileRepository {
       await _apiClient.dio.delete(ApiEndpoints.googleCalendarDisconnect);
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
-      throw Exception('Lỗi hủy liên kết Google Calendar: $msg');
+      throw Exception('Failed to disconnect Google Calendar: $msg');
     }
   }
 
