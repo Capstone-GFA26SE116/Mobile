@@ -53,6 +53,7 @@ class ApiEndpoints {
   static String paymentSync(String paymentId) => '/api/payments/$paymentId/sync';
 
   // AI Service endpoints (Port 8000)
+  static const String aiSchedulePropose = '/schedule/propose';
   static String aiTaskChat(String taskId) => '/chat/tasks/$taskId';
   static String aiTaskChatMessages(String taskId) => '/chat/tasks/$taskId/messages';
   static String aiTaskChatApply(String taskId) => '/chat/tasks/$taskId/apply';

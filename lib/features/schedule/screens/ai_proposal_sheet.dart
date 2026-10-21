@@ -219,7 +219,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '$start - $end (${s.proposedMinutes} mins)',
+                            '${s.start.day}/${s.start.month} • $start - $end (${s.proposedMinutes}m)',
                             style: const TextStyle(
                               color: AppColors.primary,
                               fontSize: 13,

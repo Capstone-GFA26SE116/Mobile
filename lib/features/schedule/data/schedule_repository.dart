@@ -1,15 +1,50 @@
 import 'package:dio/dio.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/storage_service.dart';
 import '../../dashboard/models/dashboard_models.dart';
 import '../../projects/models/project_models.dart';
 import '../models/schedule_models.dart';
 
 class ScheduleRepository {
   final ApiClient _apiClient;
+  final StorageService _storageService;
+  late final Dio _aiDio;
 
-  ScheduleRepository({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient();
+  static const String aiBaseUrl =
+      'https://metanoia-ai-2-b4ajh0bbhrandsg4.japaneast-01.azurewebsites.net';
+
+  final Map<String, String> _taskTitleCache = {};
+
+  ScheduleRepository({ApiClient? apiClient, StorageService? storageService})
+      : _apiClient = apiClient ?? ApiClient(),
+        _storageService = storageService ?? StorageService() {
+    _aiDio = Dio(
+      BaseOptions(
+        baseUrl: aiBaseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ),
+    );
+
+    _aiDio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await _storageService.getAccessToken();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = token.startsWith('Bearer ')
+                ? token
+                : 'Bearer $token';
+          }
+          return handler.next(options);
+        },
+      ),
+    );
+  }
 
   Future<List<CalendarSlotModel>> getCalendarRange(DateTime from, DateTime to) async {
     // 1. Primary: Try GET /api/calendar
@@ -136,28 +171,52 @@ class ScheduleRepository {
     return [];
   }
 
-  Future<AiProposalResponse> proposeSchedule({List<String>? taskIds, String language = 'en'}) async {
-    // 1. Try remote AI Service endpoint (via .NET Backend)
+  Future<AiProposalResponse> proposeSchedule({List<String>? taskIds, String language = 'vi'}) async {
+    // 1. Primary: Call POST /schedule/propose on AI Service
     try {
-      final response = await _apiClient.dio.post(
-        ApiEndpoints.proposeSchedule,
+      final aiResponse = await _aiDio.post(
+        ApiEndpoints.aiSchedulePropose,
         data: {
-          'taskIds': taskIds,
+          if (taskIds != null && taskIds.isNotEmpty) 'task_ids': taskIds,
           'language': language,
         },
       );
 
-      if (response.statusCode == 200 && response.data != null) {
-        final res = AiProposalResponse.fromJson(response.data as Map<String, dynamic>);
-        if (res.slots.isNotEmpty) {
-          return res;
-        }
+      // 2. The AI Service saves the proposal to Postgres with status 'Pending'.
+      // Fetch the proposal from Backend .NET (/api/schedule/proposals/pending)
+      final pendingFromBackend = await getPendingProposal();
+      if (pendingFromBackend != null) {
+        return pendingFromBackend;
+      }
+
+      // If backend pending query returns null or 204, parse AI response directly
+      if (aiResponse.statusCode == 200 && aiResponse.data != null) {
+        final parsed = AiProposalResponse.fromJson(aiResponse.data as Map<String, dynamic>);
+        return await _enrichProposalTaskTitles(parsed);
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 429) {
+        throw Exception('AI quota exceeded. Please try again later.');
+      } else if (e.response?.statusCode == 409) {
+        throw Exception('Active subscription required for AI Schedule Optimization.');
+      }
+      // If AI service failed, check if there is an existing pending proposal in backend
+      final pending = await getPendingProposal();
+      if (pending != null) {
+        return pending;
       }
     } catch (_) {
-      // Backend AI microservice unavailable or offline, seamlessly fallback to local intelligent planner
+      final pending = await getPendingProposal();
+      if (pending != null) {
+        return pending;
+      }
     }
 
-    // 2. Intelligent On-Device Planner Fallback
+    // 3. Fallback: Intelligent On-Device Planner
+    return _generateLocalIntelligentProposal(taskIds: taskIds);
+  }
+
+  Future<AiProposalResponse> _generateLocalIntelligentProposal({List<String>? taskIds}) async {
     try {
       final projectRes = await _apiClient.dio.get(ApiEndpoints.projects);
       final List<ProjectModel> projects = [];
@@ -178,6 +237,7 @@ class ScheduleRepository {
               if (s != 'done' && s != 'completed' && s != 'cancelled') {
                 if (taskIds == null || taskIds.contains(t.id)) {
                   candidateTasks.add(t);
+                  _taskTitleCache[t.id] = t.title;
                 }
               }
             }
@@ -306,37 +366,50 @@ class ScheduleRepository {
       final response = await _apiClient.dio.get(ApiEndpoints.pendingProposal);
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data as Map<String, dynamic>;
-        final slotsRaw = data['slots'] as List<dynamic>? ?? [];
-        final slots = slotsRaw.map((s) {
-          final slotMap = s as Map<String, dynamic>;
-          final start = DateTime.tryParse(slotMap['start'] as String? ?? '')?.toLocal() ?? DateTime.now();
-          final end = DateTime.tryParse(slotMap['end'] as String? ?? '')?.toLocal() ?? DateTime.now();
-          final minutes = end.difference(start).inMinutes;
-
-          return AiSlotItem(
-            slotId: slotMap['id']?.toString() ?? '',
-            taskId: slotMap['taskId']?.toString() ?? '',
-            subTaskId: slotMap['subTaskId']?.toString(),
-            start: start,
-            end: end,
-            proposedMinutes: minutes,
-            explanation: 'Pending approval',
-          );
-        }).toList();
-
-        return AiProposalResponse(
-          proposalId: data['id']?.toString(),
-          isFeasible: data['isFeasible'] as bool? ?? true,
-          missingMinutes: data['missingMinutes'] as int?,
-          explanation: data['explanation'] as String? ?? 'Pending schedule proposal',
-          slots: slots,
-          warnings: [],
-        );
+        final proposal = AiProposalResponse.fromJson(data);
+        return await _enrichProposalTaskTitles(proposal);
       }
       return null;
     } catch (_) {
       return null;
     }
+  }
+
+  Future<AiProposalResponse> _enrichProposalTaskTitles(AiProposalResponse proposal) async {
+    if (proposal.slots.isEmpty) return proposal;
+
+    final needsEnrich = proposal.slots.any((s) => s.taskTitle == null || s.taskTitle!.isEmpty);
+    if (!needsEnrich) return proposal;
+
+    if (_taskTitleCache.isEmpty) {
+      try {
+        final projectRes = await _apiClient.dio.get(ApiEndpoints.projects);
+        if (projectRes.statusCode == 200 && projectRes.data != null) {
+          final projects = (projectRes.data as List<dynamic>)
+              .map((e) => ProjectModel.fromJson(e as Map<String, dynamic>));
+          for (final p in projects) {
+            try {
+              final taskRes = await _apiClient.dio.get(ApiEndpoints.projectTasks(p.id));
+              if (taskRes.statusCode == 200 && taskRes.data != null) {
+                final tasks = (taskRes.data as List<dynamic>)
+                    .map((e) => TaskModel.fromJson(e as Map<String, dynamic>));
+                for (final t in tasks) {
+                  _taskTitleCache[t.id] = t.title;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
+
+    final enrichedSlots = proposal.slots.map((s) {
+      if (s.taskTitle != null && s.taskTitle!.isNotEmpty) return s;
+      final title = _taskTitleCache[s.taskId] ?? 'Focus Session (${s.proposedMinutes}m)';
+      return s.copyWith(taskTitle: title);
+    }).toList();
+
+    return proposal.copyWith(slots: enrichedSlots);
   }
 
   Future<void> approveProposal(String proposalId) async {
