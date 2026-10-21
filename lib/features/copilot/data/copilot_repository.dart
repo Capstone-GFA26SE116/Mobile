@@ -82,19 +82,31 @@ class CopilotRepository {
     String messageId, [
     List<CopilotSubtaskDraft>? subtasks,
   ]) async {
+    bool appliedViaAi = false;
     // 1. Apply to AI Service
     try {
-      await _aiDio.post(
+      final response = await _aiDio.post(
         '/chat/tasks/$taskId/apply',
         data: {
           'message_id': messageId,
-          'subtasks': subtasks?.map((s) => s.toJson()).toList(),
+          if (subtasks != null)
+            'subtasks': subtasks
+                .map((s) => {
+                      'title': s.title,
+                      'estimated_minutes': s.minutes,
+                    })
+                .toList(),
         },
       );
-    } catch (_) {}
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        appliedViaAi = true;
+      }
+    } catch (_) {
+      // AI service not available or returned error, fallback to direct backend
+    }
 
-    // 2. Sync directly to Backend Postgres if taskId is valid
-    if (subtasks != null && taskId.contains('-')) {
+    // 2. Sync directly to Backend Postgres if AI service did not apply and taskId is valid
+    if (!appliedViaAi && subtasks != null && taskId.contains('-')) {
       for (final s in subtasks) {
         try {
           await _apiClient.dio.post(

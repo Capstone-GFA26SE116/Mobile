@@ -1,6 +1,7 @@
 class AiSlotItem {
   final String slotId;
   final String taskId;
+  final String? taskTitle;
   final String? subTaskId;
   final DateTime start;
   final DateTime end;
@@ -10,6 +11,7 @@ class AiSlotItem {
   AiSlotItem({
     required this.slotId,
     required this.taskId,
+    this.taskTitle,
     this.subTaskId,
     required this.start,
     required this.end,
@@ -21,6 +23,7 @@ class AiSlotItem {
     return AiSlotItem(
       slotId: json['slotId'] as String? ?? json['slot_id'] as String? ?? '',
       taskId: json['taskId'] as String? ?? json['task_id'] as String? ?? '',
+      taskTitle: json['taskTitle'] as String? ?? json['task_title'] as String?,
       subTaskId: json['subTaskId'] as String? ?? json['subtask_id'] as String?,
       start: DateTime.tryParse(json['start'] as String? ?? '')?.toLocal() ?? DateTime.now(),
       end: DateTime.tryParse(json['end'] as String? ?? '')?.toLocal() ?? DateTime.now(),

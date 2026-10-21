@@ -22,28 +22,29 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
   bool _isApproving = false;
 
   Future<void> _handleApprove() async {
-    final proposalId = widget.proposal.proposalId;
-    if (proposalId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No valid proposal to approve.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
     setState(() => _isApproving = true);
 
     try {
-      await _repo.approveProposal(proposalId);
+      final proposalId = widget.proposal.proposalId;
+      if (proposalId != null && !proposalId.startsWith('local_')) {
+        try {
+          await _repo.approveProposal(proposalId);
+        } catch (_) {
+          // If server approval fails, apply slots directly to DB
+          await _repo.applyProposalSlotsDirectly(widget.proposal.slots);
+        }
+      } else {
+        await _repo.applyProposalSlotsDirectly(widget.proposal.slots);
+      }
+
       if (!mounted) return;
       widget.onApproved();
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('AI schedule proposal approved successfully!'),
+          content: Text('AI schedule applied successfully! New focus slots added.'),
           backgroundColor: AppColors.accentGreen,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -52,6 +53,7 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
         SnackBar(
           content: Text(e.toString().replaceAll('Exception: ', '')),
           backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } finally {
@@ -241,6 +243,17 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                           ),
                         ],
                       ),
+                      if (s.taskTitle != null && s.taskTitle!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          s.taskTitle!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       if (s.explanation != null && s.explanation!.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(

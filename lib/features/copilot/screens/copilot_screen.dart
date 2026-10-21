@@ -59,6 +59,20 @@ class _CopilotScreenState extends State<CopilotScreen> {
         kind: 'text',
       ),
     );
+
+    if (_selectedTaskId != null) {
+      _loadHistoryForTask(_selectedTaskId!);
+    }
+  }
+
+  Future<void> _loadHistoryForTask(String taskId) async {
+    final history = await _repository.getTaskChat(taskId);
+    if (!mounted || history.isEmpty) return;
+    setState(() {
+      _messages.clear();
+      _messages.addAll(history);
+    });
+    _scrollToBottom();
   }
 
   Future<void> _handleSelectTask() async {

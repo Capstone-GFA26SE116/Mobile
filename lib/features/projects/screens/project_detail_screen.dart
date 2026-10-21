@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../copilot/screens/copilot_screen.dart';
 import '../../onboarding/data/onboarding_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project_models.dart';
 import 'create_project_dialog.dart';
 import 'create_task_dialog.dart';
 import 'milestone_form_dialog.dart';
+import '../widgets/ai_task_decompose_sheet.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final ProjectModel project;
@@ -265,6 +265,118 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         }
       }
     }
+  }
+
+  void _openAiDecomposeForTask(TaskModel task) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => AiTaskDecomposeSheet(
+        task: task,
+        projectName: _project.name,
+        onApplied: () {
+          setState(() {
+            _expandedTaskIds.add(task.id);
+          });
+          _loadSubTasksForTask(task.id);
+        },
+      ),
+    );
+  }
+
+  void _showSelectTaskForAiDecompose() {
+    if (_tasks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tasks in this project yet. Please create a task first.'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+      _openCreateTaskDialog();
+      return;
+    }
+
+    if (_tasks.length == 1) {
+      _openAiDecomposeForTask(_tasks.first);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Select Task to AI Decompose',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose a task to break down into 3-5 calibrated subtasks',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.45,
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _tasks.length,
+                  separatorBuilder: (_, _) => const Divider(color: AppColors.surfaceBorder, height: 1),
+                  itemBuilder: (_, index) {
+                    final task = _tasks[index];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      leading: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.playlist_add_check, size: 16, color: AppColors.primary),
+                      ),
+                      title: Text(
+                        task.title,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        '${task.estimatedMinutes ?? 30}m estimate  •  ${task.taskType}',
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _openAiDecomposeForTask(task);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _openCreateTaskDialog() {
@@ -1019,20 +1131,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           ),
                           const SizedBox(width: 10),
 
-                          // Card 2: AI auto-decompose
+                          // Card 2: AI Decompose Task
                           Expanded(
                             child: InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CopilotScreen(
-                                      initialTaskId: _tasks.isNotEmpty ? _tasks.first.id : null,
-                                      taskTitle: _project.name,
-                                    ),
-                                  ),
-                                );
-                              },
+                              onTap: _showSelectTaskForAiDecompose,
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 padding: const EdgeInsets.all(14),
@@ -1047,7 +1149,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                                     Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
                                     SizedBox(height: 8),
                                     Text(
-                                      'AI auto-decompose',
+                                      'AI Decompose Task',
                                       style: TextStyle(
                                         color: AppColors.textPrimary,
                                         fontSize: 13,
@@ -1056,7 +1158,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                                     ),
                                     SizedBox(height: 4),
                                     Text(
-                                      'AI schedules tasks automatically.',
+                                      'Break task into 3-5 subtasks with Kbias.',
                                       style: TextStyle(color: AppColors.textMuted, fontSize: 11),
                                     ),
                                   ],
@@ -1250,7 +1352,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
+
+                  // AI Decompose quick button
+                  IconButton(
+                    icon: const Icon(Icons.auto_awesome, size: 16, color: AppColors.primary),
+                    tooltip: 'AI Decompose Task',
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => _openAiDecomposeForTask(task),
+                  ),
+                  const SizedBox(width: 4),
 
                   // Chevron
                   Icon(
@@ -1287,22 +1399,54 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      InkWell(
-                        onTap: () => _showAddSubTaskDialog(task.id),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.add, size: 14, color: AppColors.primary),
-                            SizedBox(width: 4),
-                            Text(
-                              'Add subtask',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () => _openAiDecomposeForTask(task),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.auto_awesome, size: 12, color: AppColors.primary),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'AI Decompose',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 10),
+                          InkWell(
+                            onTap: () => _showAddSubTaskDialog(task.id),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.add, size: 14, color: AppColors.primary),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Add subtask',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1311,12 +1455,25 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Row(
-                        children: const [
-                          Icon(Icons.check_box_outline_blank, size: 14, color: AppColors.textMuted),
-                          SizedBox(width: 8),
-                          Text(
-                            'No subtasks yet.',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                        children: [
+                          const Icon(Icons.check_box_outline_blank, size: 14, color: AppColors.textMuted),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'No subtasks yet.',
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _openAiDecomposeForTask(task),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.surfaceBorder),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            icon: const Icon(Icons.auto_awesome, size: 12, color: AppColors.primary),
+                            label: const Text('AI Decompose', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
