@@ -57,6 +57,14 @@ class ApiEndpoints {
   static String aiTaskChat(String taskId) => '/chat/tasks/$taskId';
   static String aiTaskChatMessages(String taskId) => '/chat/tasks/$taskId/messages';
   static String aiTaskChatApply(String taskId) => '/chat/tasks/$taskId/apply';
+  static String aiProjectConversations(String projectId) =>
+      '/chat/projects/$projectId/conversations';
+  static String aiConversationMessages(String conversationId) =>
+      '/chat/conversations/$conversationId/messages';
+  static String aiConversationDetail(String conversationId) =>
+      '/chat/conversations/$conversationId';
+  static String aiConversationApply(String conversationId) =>
+      '/chat/conversations/$conversationId/apply';
   static String aiMemorySimilar(String taskId, {int limit = 5}) =>
       '/memory/similar?task_id=$taskId&limit=$limit';
 }
