@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../data/schedule_repository.dart';
 import '../models/schedule_models.dart';
@@ -42,7 +43,9 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('AI schedule applied successfully! New focus slots added.'),
+          content: Text(
+            'AI schedule applied successfully! New focus slots added.',
+          ),
           backgroundColor: AppColors.accentGreen,
           behavior: SnackBarBehavior.floating,
         ),
@@ -94,12 +97,16 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                   color: AppColors.primary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'AI Schedule Proposal (FR-10)',
+                  'AI Schedule Proposal',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
@@ -110,13 +117,17 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: p.isFeasible ? AppColors.accentGreen.withValues(alpha: 0.15) : Colors.redAccent.withValues(alpha: 0.15),
+                  color: p.isFeasible
+                      ? AppColors.accentGreen.withValues(alpha: 0.15)
+                      : Colors.redAccent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   p.isFeasible ? 'Feasible' : 'Underallocated',
                   style: TextStyle(
-                    color: p.isFeasible ? AppColors.accentGreen : Colors.redAccent,
+                    color: p.isFeasible
+                        ? AppColors.accentGreen
+                        : Colors.redAccent,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -131,18 +142,22 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
             decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.2),
+              ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.psychology, color: AppColors.primaryPurple, size: 20),
+                const Icon(
+                  Icons.psychology,
+                  color: AppColors.primaryPurple,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    p.explanation.isNotEmpty
-                        ? p.explanation
-                        : 'AI analyzed your cognitive rhythm and deadlines to schedule optimal focus blocks.',
+                    p.explanation.isNotEmpty ? p.explanation : 'AI analyzed your cognitive rhythm and deadlines to schedule optimal focus blocks.',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 13,
@@ -163,16 +178,25 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber, color: Colors.orange, size: 18),
+                    const Icon(
+                      Icons.warning_amber,
+                      color: Colors.orange,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         w.message,
-                        style: const TextStyle(color: Colors.orange, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
@@ -227,7 +251,10 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.amber.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
@@ -254,7 +281,8 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
                           ),
                         ),
                       ],
-                      if (s.explanation != null && s.explanation!.isNotEmpty) ...[
+                      if (s.explanation != null &&
+                          s.explanation!.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
                           s.explanation!,
@@ -276,17 +304,26 @@ class _AiProposalSheetState extends State<AiProposalSheet> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: _isApproving
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
                   )
                 : const Text(
-                    'Approve & Apply Schedule (FR-11)',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                    'Approve & Apply Schedule',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
           ),
           const SizedBox(height: 10),
