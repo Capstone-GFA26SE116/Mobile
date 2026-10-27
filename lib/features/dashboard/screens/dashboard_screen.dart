@@ -24,7 +24,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   bool _slotsLoading = true;
   String? _slotsError;
-  bool _isSyncingGoogle = false;
 
   final ScrollController _scrollController = ScrollController();
   Timer? _tickTimer;
@@ -87,63 +86,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _slotsError = 'Unable to load today\'s schedule. Pull down to retry.';
       });
     }
-  }
-
-  Future<void> _handleSyncGoogleCalendar() async {
-    setState(() => _isSyncingGoogle = true);
-    _showToast('Syncing with Google Calendar...', icon: Icons.sync);
-
-    try {
-      final message = await _repository.syncGoogleCalendar();
-      if (!mounted) return;
-
-      final rawSlots = await _repository.getTodaySlots();
-      if (!mounted) return;
-
-      final focusSlots = _repository.mapToFocusSlots(rawSlots, DateTime.now());
-
-      setState(() {
-        _focusSlots = focusSlots;
-        _isSyncingGoogle = false;
-      });
-
-      _showToast(message, icon: Icons.check_circle);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _isSyncingGoogle = false);
-      _showToast('Calendar synchronization complete.', icon: Icons.check_circle);
-    }
-  }
-
-  void _showToast(String message, {IconData icon = Icons.check_circle}) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(icon, color: AppColors.accentGreen, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1E1E1E),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: AppColors.surfaceBorder),
-        ),
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
   String _formatRemain(int remainMs) {
@@ -425,59 +367,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _getFormattedDate().toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-              ),
-            ),
-            InkWell(
-              onTap: _isSyncingGoogle ? null : _handleSyncGoogleCalendar,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.surfaceBorder),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _isSyncingGoogle
-                        ? const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.sync,
-                            size: 13,
-                            color: AppColors.accentGreen,
-                          ),
-                    const SizedBox(width: 5),
-                    Text(
-                      _isSyncingGoogle ? 'Syncing...' : 'Sync',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        Text(
+          _getFormattedDate().toUpperCase(),
+          style: const TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
         ),
         const SizedBox(height: 8),
 

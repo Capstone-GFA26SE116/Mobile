@@ -238,24 +238,71 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   Future<void> _handleSyncGoogle() async {
     setState(() => _isSyncing = true);
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00D992)),
+            ),
+            SizedBox(width: 12),
+            Text('Syncing events with Google Calendar...'),
+          ],
+        ),
+        backgroundColor: Color(0xFF1E1E1E),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
     try {
       final msg = await _repository.syncGoogleCalendar();
       await _loadSchedule();
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(msg),
-            backgroundColor: const Color(0xFF00D992),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Color(0xFF00D992), size: 18),
+                const SizedBox(width: 10),
+                Expanded(child: Text(msg, style: const TextStyle(color: Colors.white))),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E1E1E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(color: Color(0xFF333333)),
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.redAccent,
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    e.toString().replaceAll('Exception: ', ''),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E1E1E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(color: Colors.redAccent),
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -630,16 +677,48 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Sync Google Calendar',
-            icon: _isSyncing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00D992)),
-                  )
-                : const Icon(Icons.sync, color: Color(0xFF00D992), size: 20),
-            onPressed: _isSyncing ? null : _handleSyncGoogle,
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            child: InkWell(
+              onTap: _isSyncing ? null : _handleSyncGoogle,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _isSyncing
+                        ? const Color(0xFF00D992)
+                        : const Color(0xFF333333),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _isSyncing
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF00D992),
+                            ),
+                          )
+                        : const Icon(Icons.sync, color: Color(0xFF00D992), size: 14),
+                    const SizedBox(width: 5),
+                    Text(
+                      _isSyncing ? 'Syncing...' : 'Sync Calendar',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           if (_pendingProposal != null)
             Padding(
