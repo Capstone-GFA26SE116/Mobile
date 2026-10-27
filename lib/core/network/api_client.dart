@@ -58,12 +58,15 @@ class ApiClient {
     if (error is DioException) {
       final responseData = error.response?.data;
       if (responseData is Map) {
-        if (responseData['message'] != null)
+        if (responseData['message'] != null) {
           return responseData['message'].toString();
-        if (responseData['error'] != null)
+        }
+        if (responseData['error'] != null) {
           return responseData['error'].toString();
-        if (responseData['title'] != null)
+        }
+        if (responseData['title'] != null) {
           return responseData['title'].toString();
+        }
       } else if (responseData is String && responseData.isNotEmpty) {
         if (responseData.contains('<html') ||
             responseData.contains('<!DOCTYPE')) {
