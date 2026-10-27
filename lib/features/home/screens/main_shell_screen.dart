@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../copilot/screens/copilot_screen.dart';
 import '../../dashboard/screens/dashboard_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../projects/screens/projects_screen.dart';
@@ -23,13 +22,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
       DashboardScreen(
         onNavigateToSchedule: () {
           setState(() {
-            _currentIndex = 2;
+            _currentIndex = 1; // Navigates to Schedule tab
           });
         },
       ),
-      const ProjectsScreen(),
       const ScheduleScreen(),
-      const CopilotScreen(),
+      const ProjectsScreen(),
       const ProfileScreen(),
     ];
   }
@@ -76,19 +74,14 @@ class _MainShellScreenState extends State<MainShellScreen> {
               label: 'Today',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.folder_outlined),
-              activeIcon: Icon(Icons.folder),
-              label: 'Projects',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.calendar_month_outlined),
               activeIcon: Icon(Icons.calendar_month),
               label: 'Schedule',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.psychology_outlined),
-              activeIcon: Icon(Icons.psychology),
-              label: 'Copilot',
+              icon: Icon(Icons.folder_outlined),
+              activeIcon: Icon(Icons.folder),
+              label: 'Projects',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
