@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/storage_service.dart';
@@ -10,9 +11,7 @@ class CopilotRepository {
   final StorageService _storageService;
   late final Dio _aiDio;
 
-  // AI Service Base URL (METANOIA Neural Engine) matching Frontend .env
-  static const String aiBaseUrl =
-      'https://metanoia-ai-2-b4ajh0bbhrandsg4.japaneast-01.azurewebsites.net';
+  static String get aiBaseUrl => AppConfig.aiServiceUrl;
 
   CopilotRepository({ApiClient? apiClient, StorageService? storageService})
       : _apiClient = apiClient ?? ApiClient(),

@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/constants/app_colors.dart';
 import 'features/auth/screens/auth_gate.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // AppConfig will gracefully fall back to safe default URLs
+  }
   runApp(const MetanoiaApp());
 }
 

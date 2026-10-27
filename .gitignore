@@ -46,3 +46,19 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Android signing keys & properties
+*.keystore
+*.jks
+key.properties
+local.properties
+
+# Google Services credentials
+google-services.json
+GoogleService-Info.plist
+

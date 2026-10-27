@@ -1,17 +1,10 @@
 import 'package:dio/dio.dart';
 
+import '../config/app_config.dart';
 import '../services/storage_service.dart';
 
 class ApiClient {
-  // Toggle to true if connecting to local backend server (localhost:5036 / 10.0.2.2:5036)
-  static const bool useLocalServer = false;
-  static const String onlineServerUrl =
-      'https://metanoia-backend-core-fseaahdbayg8eygy.japaneast-01.azurewebsites.net';
-  static const String localServerUrl =
-      'http://10.0.2.2:5036'; // Android Emulator alias
-
-  static String get baseUrl =>
-      useLocalServer ? localServerUrl : onlineServerUrl;
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   late final Dio dio;
   final StorageService _storageService;
