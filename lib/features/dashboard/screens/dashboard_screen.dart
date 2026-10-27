@@ -26,28 +26,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _slotsError;
   bool _isSyncingGoogle = false;
 
-  final TextEditingController _quickTaskController = TextEditingController();
-  final FocusNode _quickTaskFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
-
-  // Upcoming tasks in inbox — default seed matching Frontend UPCOMING
-  final List<UpcomingTaskItem> _upcomingTasks = [
-    UpcomingTaskItem(
-      id: 't1',
-      title: 'Submit Sprint 1 report',
-      due: 'Due: 17:00',
-      urgency: 'urgent',
-    ),
-    UpcomingTaskItem(
-      id: 't2',
-      title: 'Sync with DevOps on Redis infrastructure',
-      due: 'Due: 18:30',
-      urgency: 'normal',
-    ),
-  ];
-
   Timer? _tickTimer;
-  int _activeMetricCardIndex = 0;
 
   @override
   void initState() {
@@ -59,14 +39,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _tickTimer?.cancel();
-    _quickTaskController.dispose();
-    _quickTaskFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _startTicker() {
-    // Tick every 30 seconds to refresh slot countdown and up-next promotion
+    // Refresh slot statuses (running/next/done) every 30 seconds
     _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted || _focusSlots.isEmpty) return;
       setState(() {
@@ -106,14 +84,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _isLoading = false;
         _slotsLoading = false;
-        _slotsError = 'Failed to load schedule. Pull down to retry.';
+        _slotsError = 'Unable to load today\'s schedule. Pull down to retry.';
       });
     }
   }
 
   Future<void> _handleSyncGoogleCalendar() async {
     setState(() => _isSyncingGoogle = true);
-    _showToast('Scanning and syncing with Google Calendar…', icon: Icons.sync);
+    _showToast('Syncing with Google Calendar...', icon: Icons.sync);
 
     try {
       final message = await _repository.syncGoogleCalendar();
@@ -133,37 +111,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSyncingGoogle = false);
-      _showToast('Sync complete! Optimized schedule is preserved.', icon: Icons.check_circle);
+      _showToast('Calendar synchronization complete.', icon: Icons.check_circle);
     }
-  }
-
-  void _handleQuickAdd(String text) {
-    final v = text.trim();
-    if (v.isEmpty) return;
-
-    final newTask = UpcomingTaskItem(
-      id: 't_${DateTime.now().millisecondsSinceEpoch}',
-      title: v,
-      due: 'Just added',
-      urgency: 'normal',
-    );
-
-    setState(() {
-      _upcomingTasks.insert(0, newTask);
-      _quickTaskController.clear();
-    });
-
-    final trimmed = v.length > 25 ? '${v.substring(0, 25)}…' : v;
-    _showToast('Added "$trimmed" to the task inbox');
-  }
-
-  void _focusQuickAddInput() {
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-    );
-    _quickTaskFocusNode.requestFocus();
   }
 
   void _showToast(String message, {IconData icon = Icons.check_circle}) {
@@ -177,7 +126,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
@@ -201,6 +154,183 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return h > 0 ? '${h}h ${m.toString().padLeft(2, '0')}' : '${m}m';
   }
 
+  String _formatDuration(int minutes) {
+    if (minutes <= 0) return '0m';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h > 0 && m > 0) return '${h}h ${m}m';
+    if (h > 0) return '${h}h';
+    return '${m}m';
+  }
+
+  String _formatTime(String? timeStr, {String fallback = '08:00'}) {
+    if (timeStr == null || timeStr.trim().isEmpty) return fallback;
+    final parts = timeStr.trim().split(':');
+    if (parts.length >= 2) {
+      return '${parts[0]}:${parts[1]}';
+    }
+    return timeStr;
+  }
+
+  String _getFormattedDate() {
+    final now = DateTime.now();
+    const weekdays = [
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+    ];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final dayName = weekdays[now.weekday - 1];
+    final monthName = months[now.month - 1];
+    return '$dayName, $monthName ${now.day}';
+  }
+
+  void _showSlotDetails(FocusSlotItem slot) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.schedule, size: 16, color: AppColors.accentGreen),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${slot.start} - ${slot.end}',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    _buildStatusBadge(slot.status, null),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                Text(
+                  slot.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                Text(
+                  slot.desc,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                if (slot.tags.isNotEmpty) ...[
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: slot.tags.map((t) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.surfaceBorder),
+                        ),
+                        child: Text(
+                          t.label,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.surfaceBorder),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Close',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ),
+                    if (widget.onNavigateToSchedule != null) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            widget.onNavigateToSchedule!();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text(
+                            'View in Schedule',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -214,7 +344,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final fullName = _profile?.fullName ?? 'Freelancer';
     final firstName = fullName.trim().split(RegExp(r'\s+')).first;
-    final focusTasksCount = _focusSlots.isNotEmpty ? _focusSlots.length : 3;
+    final totalSlots = _focusSlots.length;
+
+    // Calculate real focus metrics from slots
+    int totalPlannedMinutes = 0;
+    int completedMinutes = 0;
+
+    for (final s in _focusSlots) {
+      final diffMin = ((s.endMs - s.startMs) / 60000).round();
+      final validMin = diffMin > 0 ? diffMin : 45;
+      totalPlannedMinutes += validMin;
+      if (s.status == 'done') {
+        completedMinutes += validMin;
+      }
+    }
+
+    final double completionPercent = totalPlannedMinutes > 0
+        ? (completedMinutes / totalPlannedMinutes).clamp(0.0, 1.0)
+        : 0.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -230,24 +377,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. WELCOME BAR (Header)
-                _buildWelcomeHeader(firstName, focusTasksCount),
+                // 1. HEADER (Greeting & Google Calendar Sync)
+                _buildHeader(firstName, totalSlots),
+                const SizedBox(height: 16),
+
+                // 2. WEEKLY CALENDAR STRIP (Temporal Context)
+                _buildWeeklyDayStrip(),
                 const SizedBox(height: 18),
 
-                // 2. ACTION BUTTONS (Sync Google Calendar & + Quick add task)
-                _buildActionButtons(),
+                // 3. PERSONAL WORK RHYTHM & INSIGHTS (Thống kê bản thân trong công việc)
+                _buildPersonalWorkInsights(
+                  totalSlots: totalSlots,
+                  plannedMinutes: totalPlannedMinutes,
+                  completedMinutes: completedMinutes,
+                  completionRate: completionPercent,
+                  workdayStart: _profile?.workDayStart,
+                  workdayEnd: _profile?.workDayEnd,
+                  bufferMin: _profile?.defaultBufferMinutes ?? 15,
+                ),
                 const SizedBox(height: 22),
 
-                // 3. TOP 3 KEY METRICS CARDS (Circadian Peak, Time Multiplier, Today Tasks)
-                _buildKeyMetricsSection(),
-                const SizedBox(height: 26),
-
-                // 4. TODAY'S RECOMMENDED SCHEDULE SECTION
+                // 4. TODAY'S SCHEDULE TIMELINE
                 _buildTodayScheduleSection(),
-                const SizedBox(height: 26),
+                const SizedBox(height: 20),
 
-                // 5. QUICK TASK INBOX SECTION (Input + Upcoming List + AI Suggestion)
-                _buildQuickTaskInboxSection(),
+                // 5. PRODUCTIVITY INSIGHT BANNER
+                _buildProductivityInsightBanner(
+                  totalSlots: totalSlots,
+                  plannedMinutes: totalPlannedMinutes,
+                  bufferMin: _profile?.defaultBufferMinutes ?? 15,
+                  workdayStart: _profile?.workDayStart,
+                  workdayEnd: _profile?.workDayEnd,
+                ),
                 const SizedBox(height: 32),
               ],
             ),
@@ -258,525 +419,318 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ===========================================================================
-  // 1. WELCOME HEADER
+  // 1. HEADER
   // ===========================================================================
-  Widget _buildWelcomeHeader(String firstName, int focusTasksCount) {
+  Widget _buildHeader(String firstName, int totalSlots) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Pill Eyebrow Badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.35),
-              width: 1,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _getFormattedDate().toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
             ),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.auto_awesome, color: AppColors.primary, size: 13),
-              SizedBox(width: 6),
-              Text(
-                'COGNITIVE CO-PILOT V2.4',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
+            InkWell(
+              onTap: _isSyncingGoogle ? null : _handleSyncGoogleCalendar,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _isSyncingGoogle
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.sync,
+                            size: 13,
+                            color: AppColors.accentGreen,
+                          ),
+                    const SizedBox(width: 5),
+                    Text(
+                      _isSyncingGoogle ? 'Syncing...' : 'Sync',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
 
-        // Title: Hi [Name] 👋
         Text(
-          'Hi $firstName 👋',
+          'Hello, $firstName 👋',
           style: const TextStyle(
             color: AppColors.textPrimary,
-            fontSize: 28,
+            fontSize: 26,
             fontWeight: FontWeight.bold,
             letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 3),
 
-        // Subtitle
-        Text.rich(
-          TextSpan(
-            text: 'Today you have ',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-              height: 1.45,
-            ),
+        Text(
+          totalSlots > 0
+              ? 'You have $totalSlots scheduled focus blocks for today.'
+              : 'Here is your personal work rhythm and focus overview.',
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // 2. WEEKLY CALENDAR STRIP (7 DAYS)
+  // ===========================================================================
+  Widget _buildWeeklyDayStrip() {
+    final now = DateTime.now();
+    // Find Monday of current week
+    final monday = DateTime(now.year, now.month, now.day).subtract(
+      Duration(days: now.weekday - 1),
+    );
+
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.surfaceBorder),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(7, (index) {
+          final date = monday.add(Duration(days: index));
+          final isToday = date.year == now.year &&
+              date.month == now.month &&
+              date.day == now.day;
+
+          return Column(
             children: [
-              TextSpan(
-                text: '$focusTasksCount focus tasks',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const TextSpan(text: '. Peak energy hits '),
-              const TextSpan(
-                text: '88%',
+              Text(
+                dayLabels[index],
                 style: TextStyle(
-                  color: AppColors.accentGreen,
-                  fontWeight: FontWeight.bold,
+                  color: isToday ? AppColors.accentGreen : AppColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
                 ),
               ),
-              const TextSpan(text: ' at 14:00.'),
+              const SizedBox(height: 6),
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isToday ? AppColors.accentGreen : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: isToday
+                      ? null
+                      : Border.all(color: AppColors.surfaceBorder.withValues(alpha: 0.5)),
+                ),
+                child: Text(
+                  '${date.day}',
+                  style: TextStyle(
+                    color: isToday ? Colors.black : AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
             ],
-          ),
-        ),
-      ],
+          );
+        }),
+      ),
     );
   }
 
   // ===========================================================================
-  // 2. ACTION BUTTONS
+  // 3. PERSONAL WORK RHYTHM & INSIGHTS (Self-Awareness Cards)
   // ===========================================================================
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        // Sync Google Calendar (Ghost Outlined)
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _isSyncingGoogle ? null : _handleSyncGoogleCalendar,
-            icon: _isSyncingGoogle
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary),
-                  )
-                : const Icon(Icons.sync, size: 16, color: AppColors.textPrimary),
-            label: const Text(
-              'Sync Google Calendar',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: const Color(0xFF141414),
-              side: const BorderSide(color: AppColors.surfaceBorder, width: 1),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-
-        // + Quick add task (Emerald Primary)
-        ElevatedButton.icon(
-          onPressed: _focusQuickAddInput,
-          icon: const Icon(Icons.add, size: 18, color: Colors.black),
-          label: const Text(
-            '+ Quick add task',
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 12.5,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accentGreen,
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===========================================================================
-  // 3. TOP 3 KEY METRICS CARDS
-  // ===========================================================================
-  Widget _buildKeyMetricsSection() {
-    final completedCount = _upcomingTasks.where((t) => t.isCompleted).length;
-    final totalCount = _upcomingTasks.isNotEmpty ? _upcomingTasks.length + 3 : 5;
-    final currentDay = _getDayOfWeek();
-
-    final cards = [
-      _buildEnergyPeakCard(),
-      _buildTimeMultiplierCard(),
-      _buildTodayTasksCard(completedCount + 3, totalCount, currentDay),
-    ];
+  Widget _buildPersonalWorkInsights({
+    required int totalSlots,
+    required int plannedMinutes,
+    required int completedMinutes,
+    required double completionRate,
+    required String? workdayStart,
+    required String? workdayEnd,
+    required int bufferMin,
+  }) {
+    final startStr = _formatTime(workdayStart, fallback: '08:00');
+    final endStr = _formatTime(workdayEnd, fallback: '18:00');
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 172,
-          child: PageView.builder(
-            itemCount: cards.length,
-            onPageChanged: (i) => setState(() => _activeMetricCardIndex = i),
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: cards[index],
-              );
-            },
-          ),
+        Row(
+          children: const [
+            Icon(Icons.query_stats, color: AppColors.primary, size: 16),
+            SizedBox(width: 6),
+            Text(
+              'Work Rhythm & Focus Overview',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14.5,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
 
-        // Dot indicators
+        // 2x2 Grid of essential self-awareness metrics
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(cards.length, (index) {
-            final isActive = index == _activeMetricCardIndex;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: isActive ? 20 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: isActive ? AppColors.accentGreen : AppColors.surfaceBorder,
-                borderRadius: BorderRadius.circular(3),
+          children: [
+            // Card 1: Focus Time Planned
+            Expanded(
+              child: _buildInsightCard(
+                icon: Icons.timer_outlined,
+                iconColor: AppColors.accentGreen,
+                title: 'Planned Focus',
+                value: _formatDuration(plannedMinutes),
+                subtitle: totalSlots > 0 ? '$totalSlots blocks today' : 'No blocks set',
               ),
-            );
-          }),
+            ),
+            const SizedBox(width: 10),
+            // Card 2: Completion Progress
+            Expanded(
+              child: _buildInsightCard(
+                icon: Icons.task_alt,
+                iconColor: AppColors.primary,
+                title: 'Completed',
+                value: _formatDuration(completedMinutes),
+                subtitle: '${(completionRate * 100).toInt()}% of daily target',
+                trailingProgress: completionRate,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        Row(
+          children: [
+            // Card 3: Personal Workday Window
+            Expanded(
+              child: _buildInsightCard(
+                icon: Icons.wb_sunny_outlined,
+                iconColor: Colors.amber,
+                title: 'Workday Window',
+                value: '$startStr - $endStr',
+                subtitle: '${bufferMin}m buffer between tasks',
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Card 4: K_bias Multiplier (Metanoia's Core Value)
+            Expanded(
+              child: _buildInsightCard(
+                icon: Icons.auto_awesome,
+                iconColor: AppColors.primary,
+                title: 'Time Calibration',
+                value: '1.25x (Learned)',
+                subtitle: 'AI buffer protects deadlines',
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  String _getDayOfWeek() {
-    const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
-    return days[DateTime.now().weekday - 1];
-  }
-
-  // Metric 1: Focus Energy (Circadian Peak)
-  Widget _buildEnergyPeakCard() {
+  Widget _buildInsightCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String subtitle,
+    double? trailingProgress,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
-      ),
-      child: Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Focus energy (Circadian Peak)',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.accentGreen, width: 1),
-                    ),
-                    child: const Text(
-                      'OPTIMAL',
-                      style: TextStyle(
-                        color: AppColors.accentGreen,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Value & Trend
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  const Text(
-                    '88%',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.north_east, color: AppColors.accentGreen, size: 14),
-                      const SizedBox(width: 2),
-                      Text(
-                        'Bio peak',
-                        style: TextStyle(
-                          color: AppColors.accentGreen.withValues(alpha: 0.9),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const Spacer(),
-
-              // Foot
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Deep work window',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-                  ),
-                  Text(
-                    '14:00 - 16:30',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-
-          // Wave Sparkline pinned to bottom
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 26,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
-              child: CustomPaint(
-                painter: _CircadianWavePainter(),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Metric 2: Time Multiplier (K_bias)
-  Widget _buildTimeMultiplierCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Time multiplier',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12.5,
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.accentGreen, width: 1),
-                ),
-                child: const Text(
-                  'AI',
-                  style: TextStyle(
-                    color: AppColors.accentGreen,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              Icon(icon, size: 15, color: iconColor),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
-          // Value
-          const Text(
-            '1.34x',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const Spacer(),
-
-          // Foot
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Bias compensation',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-              Text(
-                '+34%',
-                style: TextStyle(
-                  color: AppColors.accentGreen,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Segmented progress bar (60% base, 20% bias compensation, 20% recovery buffer)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: SizedBox(
-              height: 6,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 60,
-                    child: Container(color: AppColors.accentGreen.withValues(alpha: 0.45)),
-                  ),
-                  const SizedBox(width: 2),
-                  Expanded(
-                    flex: 20,
-                    child: Container(color: AppColors.accentGreen),
-                  ),
-                  const SizedBox(width: 2),
-                  Expanded(
-                    flex: 20,
-                    child: Container(color: AppColors.surfaceBorder),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Metric 3: Today's Tasks
-  Widget _buildTodayTasksCard(int completed, int total, String dayName) {
-    final progress = total > 0 ? (completed / total).clamp(0.0, 1.0) : 0.6;
-    final remaining = (total - completed).clamp(0, 99);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Today's tasks",
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.accentGreen, width: 1),
-                ),
-                child: Text(
-                  dayName,
-                  style: const TextStyle(
-                    color: AppColors.accentGreen,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Value
           Text(
-            '$completed/$total',
+            value,
             style: const TextStyle(
               color: AppColors.textPrimary,
-              fontSize: 32,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
-              letterSpacing: -0.5,
+              letterSpacing: -0.2,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const Spacer(),
+          const SizedBox(height: 4),
 
-          // Foot
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Remaining today',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-              Text(
-                '$remaining tasks to resolve',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: SizedBox(
-              height: 6,
+          if (trailingProgress != null && trailingProgress > 0) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
               child: LinearProgressIndicator(
-                value: progress,
+                value: trailingProgress,
                 backgroundColor: AppColors.surfaceBorder,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentGreen),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                minHeight: 3,
               ),
             ),
+            const SizedBox(height: 4),
+          ],
+
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 10.5,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -784,13 +738,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ===========================================================================
-  // 4. TODAY'S RECOMMENDED SCHEDULE
+  // 4. TODAY'S SCHEDULE SECTION
   // ===========================================================================
   Widget _buildTodayScheduleSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Header
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -813,24 +766,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  "Today's recommended schedule",
+                  "Today's Schedule",
                   style: TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 16,
+                    fontSize: 15.5,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            const Text(
-              'Timezone: UTC+7',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-            ),
+            if (widget.onNavigateToSchedule != null)
+              InkWell(
+                onTap: widget.onNavigateToSchedule,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    'Weekly Schedule →',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 12),
 
-        // Slots Content
         if (_slotsLoading)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 36),
@@ -839,46 +802,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
           )
         else if (_slotsError != null)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: const Color(0xFF141414),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
             ),
             child: Column(
               children: [
-                const Icon(Icons.error_outline, color: Colors.redAccent, size: 28),
+                const Icon(Icons.error_outline, color: Colors.redAccent, size: 26),
                 const SizedBox(height: 8),
                 Text(
                   _slotsError!,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 TextButton(
                   onPressed: _loadAllData,
-                  child: const Text('Try Again', style: TextStyle(color: AppColors.primary)),
+                  child: const Text('Retry', style: TextStyle(color: AppColors.primary)),
                 ),
               ],
             ),
           )
         else if (_focusSlots.isEmpty)
-          // Empty State Container matching FE
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
             decoration: BoxDecoration(
-              color: const Color(0xFF141414),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.surfaceBorder),
             ),
-            child: const Column(
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.event_available, color: AppColors.textMuted, size: 32),
-                SizedBox(height: 12),
-                Text(
-                  'Chưa có khối thời gian nào được xếp lịch cho hôm nay.',
+                const Icon(Icons.event_available, color: AppColors.textMuted, size: 34),
+                const SizedBox(height: 10),
+                const Text(
+                  'No focus blocks scheduled for today.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -886,11 +848,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  'Let AI propose an optimal schedule according to your deadlines.',
+                  style: TextStyle(
+                    color: AppColors.textMuted.withValues(alpha: 0.8),
+                    fontSize: 11.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (widget.onNavigateToSchedule != null) ...[
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: widget.onNavigateToSchedule,
+                    icon: const Icon(Icons.calendar_month, size: 15, color: Colors.white),
+                    label: const Text(
+                      'Go to Schedule',
+                      style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           )
         else
-          // Slots list
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -901,36 +889,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return _buildFocusSlotCard(slot);
             },
           ),
-
-        const SizedBox(height: 12),
-
-        // "View full detailed schedule →"
-        InkWell(
-          onTap: () {
-            if (widget.onNavigateToSchedule != null) {
-              widget.onNavigateToSchedule!();
-            }
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Text(
-                  'View full detailed schedule',
-                  style: TextStyle(
-                    color: AppColors.accentGreen,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(width: 6),
-                Icon(Icons.arrow_forward, color: AppColors.accentGreen, size: 15),
-              ],
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -947,479 +905,271 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (isRunning) borderColor = AppColors.accentGreen;
     if (isNext) borderColor = AppColors.primary.withValues(alpha: 0.6);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: isRunning ? 1.5 : 1),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Left Status Accent Bar
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: isRunning
-                    ? AppColors.accentGreen
-                    : (isNext ? AppColors.primary : Colors.transparent),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
+    return InkWell(
+      onTap: () => _showSlotDetails(slot),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor, width: isRunning ? 1.5 : 1),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: isRunning
+                      ? AppColors.accentGreen
+                      : (isNext ? AppColors.primary : Colors.transparent),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
+                  ),
                 ),
               ),
-            ),
 
-            // Time Column
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    slot.start,
-                    style: TextStyle(
-                      color: isRunning || isNext ? AppColors.accentGreen : AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    slot.end,
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Vertical rule separator
-            const VerticalDivider(color: AppColors.surfaceBorder, width: 1),
-
-            // Body Column
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Tags row
-                    if (slot.tags.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: slot.tags.map((t) {
-                          Color bg = AppColors.surface;
-                          Color textCol = AppColors.textMuted;
-                          if (t.tone == 'primary') {
-                            bg = AppColors.primary.withValues(alpha: 0.15);
-                            textCol = AppColors.primary;
-                          } else if (t.tone == 'success') {
-                            bg = AppColors.accentGreen.withValues(alpha: 0.15);
-                            textCol = AppColors.accentGreen;
-                          } else if (t.tone == 'warning') {
-                            bg = Colors.amber.withValues(alpha: 0.15);
-                            textCol = Colors.amber;
-                          }
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: bg,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              t.label,
-                              style: TextStyle(
-                                color: textCol,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-
-                    // Title
                     Text(
-                      slot.title,
+                      slot.start,
                       style: TextStyle(
-                        color: isDone ? AppColors.textMuted : AppColors.textPrimary,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        decoration: isDone ? TextDecoration.lineThrough : null,
+                        color: isRunning || isNext ? AppColors.accentGreen : AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
                     ),
-                    const SizedBox(height: 3),
-
-                    // Description
+                    const SizedBox(height: 2),
                     Text(
-                      slot.desc,
+                      slot.end,
                       style: const TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 11,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-            ),
 
-            // Right Status Badge
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (isDone)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.check_circle, size: 14, color: AppColors.accentGreen),
-                        SizedBox(width: 4),
-                        Text(
-                          'Done',
-                          style: TextStyle(color: AppColors.accentGreen, fontSize: 11, fontWeight: FontWeight.bold),
+              const VerticalDivider(color: AppColors.surfaceBorder, width: 1),
+
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (slot.tags.isNotEmpty) ...[
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: slot.tags.map((t) {
+                            Color bg = AppColors.background;
+                            Color textCol = AppColors.textMuted;
+                            if (t.tone == 'primary') {
+                              bg = AppColors.primary.withValues(alpha: 0.15);
+                              textCol = AppColors.primary;
+                            } else if (t.tone == 'success') {
+                              bg = AppColors.accentGreen.withValues(alpha: 0.15);
+                              textCol = AppColors.accentGreen;
+                            } else if (t.tone == 'warning') {
+                              bg = Colors.amber.withValues(alpha: 0.15);
+                              textCol = Colors.amber;
+                            }
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: bg,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                t.label,
+                                style: TextStyle(
+                                  color: textCol,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
+                        const SizedBox(height: 6),
                       ],
-                    )
-                  else if (isRunning)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentGreen.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.4)),
+
+                      Text(
+                        slot.title,
+                        style: TextStyle(
+                          color: isDone ? AppColors.textMuted : AppColors.textPrimary,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          decoration: isDone ? TextDecoration.lineThrough : null,
+                        ),
                       ),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'In progress',
-                            style: TextStyle(color: AppColors.accentGreen, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                          if (remainLabel != null)
-                            Text(
-                              '$remainLabel left',
-                              style: TextStyle(color: AppColors.accentGreen.withValues(alpha: 0.8), fontSize: 9),
-                            ),
-                        ],
+                      const SizedBox(height: 3),
+
+                      Text(
+                        slot.desc,
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11.5,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    )
-                  else if (isNext)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
-                      ),
-                      child: const Text(
-                        'Up next',
-                        style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                    )
-                  else
-                    const Icon(Icons.more_horiz, color: AppColors.textMuted, size: 18),
-                ],
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
+
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildStatusBadge(slot.status, remainLabel),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildStatusBadge(String status, String? remainLabel) {
+    if (status == 'done') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.check_circle, size: 14, color: AppColors.accentGreen),
+          SizedBox(width: 4),
+          Text(
+            'Done',
+            style: TextStyle(
+              color: AppColors.accentGreen,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      );
+    } else if (status == 'running') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.accentGreen.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          children: [
+            const Text(
+              'In Progress',
+              style: TextStyle(
+                color: AppColors.accentGreen,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (remainLabel != null)
+              Text(
+                '$remainLabel left',
+                style: TextStyle(
+                  color: AppColors.accentGreen.withValues(alpha: 0.8),
+                  fontSize: 9,
+                ),
+              ),
+          ],
+        ),
+      );
+    } else if (status == 'next') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+        ),
+        child: const Text(
+          'Up Next',
+          style: TextStyle(
+            color: AppColors.primary,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    } else {
+      return const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18);
+    }
+  }
+
   // ===========================================================================
-  // 5. QUICK TASK INBOX SECTION
+  // 5. PRODUCTIVITY INSIGHT BANNER (Helpful, non-intrusive tip)
   // ===========================================================================
-  Widget _buildQuickTaskInboxSection() {
+  Widget _buildProductivityInsightBanner({
+    required int totalSlots,
+    required int plannedMinutes,
+    required int bufferMin,
+    required String? workdayStart,
+    required String? workdayEnd,
+  }) {
+    final startStr = _formatTime(workdayStart, fallback: '08:00');
+    final endStr = _formatTime(workdayEnd, fallback: '18:00');
+
+    String tipMessage;
+    if (totalSlots > 0) {
+      tipMessage =
+          'You have ${_formatDuration(plannedMinutes)} of focus time planned. Taking your ${bufferMin}m buffer between sessions prevents cognitive fatigue.';
+    } else {
+      tipMessage =
+          'Your active workday window is $startStr – $endStr. Use the Schedule tab to let AI build an optimized day for your milestones.';
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.surfaceBorder),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: const [
-                  Icon(Icons.inbox, color: AppColors.primary, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'Quick task inbox',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const Text(
-                'Drawer',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Inline Quick Task Input Bar
           Container(
-            padding: const EdgeInsets.only(left: 14, right: 6),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.surfaceBorder),
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _quickTaskController,
-                    focusNode: _quickTaskFocusNode,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                    decoration: const InputDecoration(
-                      hintText: 'Type a task and press Enter…',
-                      hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onSubmitted: _handleQuickAdd,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.keyboard_return, color: AppColors.accentGreen, size: 18),
-                  onPressed: () => _handleQuickAdd(_quickTaskController.text),
-                  tooltip: 'Add task',
-                ),
-              ],
-            ),
+            child: const Icon(Icons.lightbulb_outline, color: AppColors.primary, size: 18),
           ),
-          const SizedBox(height: 18),
-
-          // Upcoming Subheader
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'UPCOMING',
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              Text(
-                '${_upcomingTasks.length} tasks',
-                style: const TextStyle(
-                  color: AppColors.accentGreen,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Task Items List
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _upcomingTasks.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final task = _upcomingTasks[index];
-              final isUrgent = task.urgency == 'urgent';
-
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.surfaceBorder),
-                ),
-                child: Row(
-                  children: [
-                    // Checkbox
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _upcomingTasks[index] = task.copyWith(isCompleted: !task.isCompleted);
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: task.isCompleted ? AppColors.accentGreen : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: task.isCompleted ? AppColors.accentGreen : AppColors.textMuted,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: task.isCompleted
-                            ? const Icon(Icons.check, size: 12, color: Colors.black)
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Task Info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            task.title,
-                            style: TextStyle(
-                              color: task.isCompleted ? AppColors.textMuted : AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Text(
-                                '• ${task.due}',
-                                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: isUrgent
-                                      ? AppColors.primary.withValues(alpha: 0.15)
-                                      : AppColors.surfaceBorder.withValues(alpha: 0.5),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: isUrgent
-                                        ? AppColors.primary.withValues(alpha: 0.4)
-                                        : Colors.transparent,
-                                    width: 0.8,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (isUrgent) ...[
-                                      Container(
-                                        width: 5,
-                                        height: 5,
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.primary,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                    ],
-                                    Text(
-                                      isUrgent ? 'KHẨN CẤP' : 'BÌNH THƯỜNG',
-                                      style: TextStyle(
-                                        color: isUrgent ? AppColors.primary : AppColors.textMuted,
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Trailing Arrow
-                    const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-
-          // AI Suggestion Box matching FE
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.2)),
-            ),
-            child: Row(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentGreen.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
+                const Text(
+                  'Productivity Insight',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
                   ),
-                  child: const Icon(Icons.tips_and_updates, color: AppColors.accentGreen, size: 16),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: const [
-                          Text(
-                            'AI SUGGESTION',
-                            style: TextStyle(
-                              color: AppColors.accentGreen,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Text('•', style: TextStyle(color: AppColors.accentGreen)),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text.rich(
-                        TextSpan(
-                          text: "Today you shouldn't take on more complex tasks after ",
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11.5,
-                            height: 1.4,
-                          ),
-                          children: const [
-                            TextSpan(
-                              text: '20:00',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            TextSpan(
-                              text: ' since biological energy is projected to drop sharply (<35%).',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 3),
+                Text(
+                  tipMessage,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11.5,
+                    height: 1.4,
                   ),
                 ),
               ],
@@ -1429,50 +1179,4 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-}
-
-// =============================================================================
-// CIRCADIAN WAVE SPARKLINE PAINTER (matching FE SVG)
-// =============================================================================
-class _CircadianWavePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // SVG: M0,26 Q20,23 35,13 T65,5 T85,20 T100,16 L100,32 L0,32 Z
-    final path = Path();
-    path.moveTo(0, h * 0.81);
-    path.cubicTo(w * 0.20, h * 0.72, w * 0.35, h * 0.40, w * 0.50, h * 0.16);
-    path.cubicTo(w * 0.65, h * 0.16, w * 0.85, h * 0.62, w, h * 0.50);
-
-    final fillPath = Path.from(path)
-      ..lineTo(w, h)
-      ..lineTo(0, h)
-      ..close();
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          AppColors.accentGreen.withValues(alpha: 0.22),
-          AppColors.accentGreen.withValues(alpha: 0.0),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, w, h))
-      ..style = PaintingStyle.fill;
-
-    canvas.drawPath(fillPath, fillPaint);
-
-    final strokePaint = Paint()
-      ..color = AppColors.accentGreen
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawPath(path, strokePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

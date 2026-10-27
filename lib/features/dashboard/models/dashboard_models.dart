@@ -171,34 +171,3 @@ class FocusSlotItem {
   }
 }
 
-class UpcomingTaskItem {
-  final String id;
-  final String title;
-  final String due;
-  final String urgency; // 'urgent', 'normal'
-  final bool isCompleted;
-
-  UpcomingTaskItem({
-    required this.id,
-    required this.title,
-    required this.due,
-    required this.urgency,
-    this.isCompleted = false,
-  });
-
-  UpcomingTaskItem copyWith({
-    String? id,
-    String? title,
-    String? due,
-    String? urgency,
-    bool? isCompleted,
-  }) {
-    return UpcomingTaskItem(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      due: due ?? this.due,
-      urgency: urgency ?? this.urgency,
-      isCompleted: isCompleted ?? this.isCompleted,
-    );
-  }
-}
