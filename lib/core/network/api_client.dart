@@ -1,19 +1,23 @@
 import 'package:dio/dio.dart';
+
 import '../services/storage_service.dart';
 
 class ApiClient {
   // Toggle to true if connecting to local backend server (localhost:5036 / 10.0.2.2:5036)
   static const bool useLocalServer = false;
-  static const String onlineServerUrl = 'http://metanoia.runasp.net';
-  static const String localServerUrl = 'http://10.0.2.2:5036'; // Android Emulator alias
+  static const String onlineServerUrl =
+      'https://metanoia-backend-core-fseaahdbayg8eygy.japaneast-01.azurewebsites.net';
+  static const String localServerUrl =
+      'http://10.0.2.2:5036'; // Android Emulator alias
 
-  static String get baseUrl => useLocalServer ? localServerUrl : onlineServerUrl;
+  static String get baseUrl =>
+      useLocalServer ? localServerUrl : onlineServerUrl;
 
   late final Dio dio;
   final StorageService _storageService;
 
   ApiClient({StorageService? storageService})
-      : _storageService = storageService ?? StorageService() {
+    : _storageService = storageService ?? StorageService() {
     dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
@@ -32,8 +36,9 @@ class ApiClient {
           // Automatically attach Bearer token if present in storage
           final token = await _storageService.getAccessToken();
           if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] =
-                token.startsWith('Bearer ') ? token : 'Bearer $token';
+            options.headers['Authorization'] = token.startsWith('Bearer ')
+                ? token
+                : 'Bearer $token';
           }
           return handler.next(options);
         },
@@ -46,15 +51,22 @@ class ApiClient {
   }
 
   /// Safe error message extraction, ensuring clean, human-readable strings
-  static String extractErrorMessage(dynamic error, [String fallback = 'An unexpected error occurred. Please try again.']) {
+  static String extractErrorMessage(
+    dynamic error, [
+    String fallback = 'An unexpected error occurred. Please try again.',
+  ]) {
     if (error is DioException) {
       final responseData = error.response?.data;
       if (responseData is Map) {
-        if (responseData['message'] != null) return responseData['message'].toString();
-        if (responseData['error'] != null) return responseData['error'].toString();
-        if (responseData['title'] != null) return responseData['title'].toString();
+        if (responseData['message'] != null)
+          return responseData['message'].toString();
+        if (responseData['error'] != null)
+          return responseData['error'].toString();
+        if (responseData['title'] != null)
+          return responseData['title'].toString();
       } else if (responseData is String && responseData.isNotEmpty) {
-        if (responseData.contains('<html') || responseData.contains('<!DOCTYPE')) {
+        if (responseData.contains('<html') ||
+            responseData.contains('<!DOCTYPE')) {
           final code = error.response?.statusCode ?? 500;
           return 'Server returned status code $code. Please try again later.';
         }
