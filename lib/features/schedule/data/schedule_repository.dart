@@ -51,7 +51,10 @@ class ScheduleRepository {
     DateTime from,
     DateTime to,
   ) async {
-    // 1. Primary: Try GET /api/calendar
+    final List<CalendarSlotModel> combinedSlots = [];
+    final Set<String> existingSlotTaskIds = {};
+
+    // 1. Fetch scheduled slots and Google events from GET /api/calendar
     try {
       final response = await _apiClient.dio.get(
         ApiEndpoints.calendar,
@@ -65,25 +68,25 @@ class ScheduleRepository {
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data as Map<String, dynamic>;
         final items = data['items'] as List<dynamic>? ?? [];
-        final slots = items
-            .map((e) => CalendarSlotModel.fromJson(e as Map<String, dynamic>))
-            .toList();
-        if (slots.isNotEmpty) {
-          return slots;
+        for (final item in items) {
+          final slot = CalendarSlotModel.fromJson(item as Map<String, dynamic>);
+          combinedSlots.add(slot);
+          if (slot.taskId != null && slot.taskId!.isNotEmpty) {
+            existingSlotTaskIds.add(slot.taskId!);
+          }
         }
       }
     } catch (_) {
-      // Fall through to fallback
+      // Continue to project fallback
     }
 
-    // 2. Fallback: Build slots from projects & tasks
+    // 2. Enrich with Project Tasks (Deadlines and Fixed tasks within the window)
     try {
       final projectRes = await _apiClient.dio.get(ApiEndpoints.projects);
       if (projectRes.statusCode == 200 && projectRes.data != null) {
         final projects = (projectRes.data as List<dynamic>)
             .map((e) => ProjectModel.fromJson(e as Map<String, dynamic>))
             .toList();
-        final List<CalendarSlotModel> fallbackSlots = [];
 
         for (final p in projects) {
           try {
@@ -96,103 +99,79 @@ class ScheduleRepository {
                   .toList();
 
               for (final t in tasks) {
-                // If task has fixedStart / fixedEnd within range
+                // Populate task title cache for proposal lookup
+                _taskTitleCache[t.id] = t.title;
+
+                // A. Tasks with Fixed Start & End inside current view window
                 if (t.fixedStart != null && t.fixedEnd != null) {
                   final s = t.fixedStart!;
                   final e = t.fixedEnd!;
                   if (e.isAfter(from) && s.isBefore(to)) {
-                    fallbackSlots.add(
-                      CalendarSlotModel(
-                        id: t.id,
-                        source: 'Task',
-                        title: t.title,
-                        start: s,
-                        end: e,
-                        isAllDay: false,
-                        status: t.status,
-                        taskId: t.id,
-                        projectId: p.id,
-                        projectName: p.name,
-                        taskType: t.taskType,
-                      ),
-                    );
-                  }
-                } else if (t.deadline != null) {
-                  final dl = t.deadline!;
-                  if (dl.isAfter(from.subtract(const Duration(days: 1))) &&
-                      dl.isBefore(to.add(const Duration(days: 1)))) {
-                    fallbackSlots.add(
-                      CalendarSlotModel(
-                        id: t.id,
-                        source: 'Task',
-                        title: t.title,
-                        start: DateTime(dl.year, dl.month, dl.day, 9, 0),
-                        end: DateTime(dl.year, dl.month, dl.day, 10, 0),
-                        isAllDay: true,
-                        status: t.status,
-                        taskId: t.id,
-                        projectId: p.id,
-                        projectName: p.name,
-                        taskType: t.taskType,
-                      ),
-                    );
+                    final exists = combinedSlots.any((slot) => slot.id == t.id || (slot.taskId == t.id && !slot.isAllDay));
+                    if (!exists) {
+                      combinedSlots.add(
+                        CalendarSlotModel(
+                          id: 'task_${t.id}',
+                          source: 'Task',
+                          title: t.title,
+                          start: s,
+                          end: e,
+                          isAllDay: false,
+                          status: t.status,
+                          taskId: t.id,
+                          projectId: p.id,
+                          projectName: p.name,
+                          taskType: t.taskType,
+                        ),
+                      );
+                    }
                   }
                 }
 
-                // Check task's schedule slots
-                try {
-                  final slotRes = await _apiClient.dio.get(
-                    ApiEndpoints.taskScheduleSlots(t.id),
-                  );
-                  if (slotRes.statusCode == 200 && slotRes.data != null) {
-                    final rawSlots = slotRes.data as List<dynamic>;
-                    for (final sJson in rawSlots) {
-                      final sm = sJson as Map<String, dynamic>;
-                      final sStart = DateTime.tryParse(sm['startTime'] ?? '')
-                          ?.toLocal();
-                      final sEnd = DateTime.tryParse(sm['endTime'] ?? '')
-                          ?.toLocal();
-                      final slotId = sm['id']?.toString() ?? '';
-                      if (sStart != null &&
-                          sEnd != null &&
-                          sEnd.isAfter(from) &&
-                          sStart.isBefore(to)) {
-                        fallbackSlots.removeWhere(
-                          (item) =>
-                              item.id == slotId ||
-                              (item.taskId == t.id && item.isAllDay),
-                        );
-                        fallbackSlots.add(
-                          CalendarSlotModel(
-                            id: slotId,
-                            source: 'Slot',
-                            title: t.title,
-                            start: sStart,
-                            end: sEnd,
-                            isAllDay: false,
-                            status: sm['status'] as String?,
-                            taskId: t.id,
-                            projectId: p.id,
-                            projectName: p.name,
-                            taskType: t.taskType,
-                            explanation: sm['explanation'] as String?,
-                            isManualOverride:
-                                sm['isManualOverride'] as bool? ?? false,
-                          ),
-                        );
-                      }
+                // B. Tasks with Deadlines inside current view window
+                if (t.deadline != null) {
+                  final dl = t.deadline!;
+                  if (dl.isAfter(from.subtract(const Duration(days: 1))) &&
+                      dl.isBefore(to.add(const Duration(days: 1)))) {
+                    final deadlineId = 'deadline_${t.id}';
+                    final alreadyHasDeadline = combinedSlots.any((slot) => slot.id == deadlineId);
+                    if (!alreadyHasDeadline) {
+                      combinedSlots.add(
+                        CalendarSlotModel(
+                          id: deadlineId,
+                          source: 'Deadline',
+                          title: t.title,
+                          start: DateTime(dl.year, dl.month, dl.day, 9, 0),
+                          end: DateTime(dl.year, dl.month, dl.day, 10, 0),
+                          isAllDay: true,
+                          status: t.status,
+                          taskId: t.id,
+                          projectId: p.id,
+                          projectName: p.name,
+                          taskType: t.taskType,
+                        ),
+                      );
                     }
                   }
-                } catch (_) {}
+                }
               }
             }
           } catch (_) {}
         }
-        return fallbackSlots;
       }
     } catch (_) {}
 
-    return [];
+    // Sort all events by start time, with all-day / deadlines first on the same day
+    combinedSlots.sort((a, b) {
+      final compDay = DateTime(a.start.year, a.start.month, a.start.day)
+          .compareTo(DateTime(b.start.year, b.start.month, b.start.day));
+      if (compDay != 0) return compDay;
+      if (a.isAllDay && !b.isAllDay) return -1;
+      if (!a.isAllDay && b.isAllDay) return 1;
+      return a.start.compareTo(b.start);
+    });
+
+    return combinedSlots;
   }
 
   Future<AiProposalResponse> proposeSchedule({

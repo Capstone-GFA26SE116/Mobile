@@ -16,7 +16,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   final ScheduleRepository _repository = ScheduleRepository();
 
   String _viewMode = 'week'; // 'week' | 'month'
-  String _filter = 'all'; // 'all' | 'priority' | 'capstone' | 'deep'
 
   DateTime _anchorDate = DateTime.now();
   DateTime _selectedDate = DateTime.now();
@@ -27,7 +26,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   bool _isLoading = true;
   bool _isProposing = false;
   bool _isSyncing = false;
-  bool _isProposalExpanded = true;
 
   static const List<String> _weekdayLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
   static const List<String> _monthNames = [
@@ -138,23 +136,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     _loadSchedule();
   }
 
-  List<CalendarSlotModel> get _filteredSlots {
-    return _allSlots.where((slot) {
-      if (_filter == 'priority') {
-        final isFixed = slot.taskType?.toLowerCase() == 'fixed';
-        final isApproved = slot.status?.toLowerCase() == 'approved';
-        return isFixed || isApproved;
-      } else if (_filter == 'capstone') {
-        final p = (slot.projectName ?? '').toLowerCase();
-        final t = slot.title.toLowerCase();
-        return p.contains('capstone') || t.contains('capstone') || p.contains('do an') || t.contains('do an');
-      } else if (_filter == 'deep') {
-        final dur = slot.end.difference(slot.start).inMinutes;
-        return dur >= 60;
-      }
-      return true;
-    }).toList();
-  }
+  List<CalendarSlotModel> get _filteredSlots => _allSlots;
 
   List<CalendarSlotModel> _getSlotsForDay(DateTime day) {
     return _filteredSlots.where((s) => _isSameDay(s.start, day)).toList();
@@ -201,7 +183,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Future<void> _handleProposeAi() async {
     setState(() => _isProposing = true);
     try {
-      final proposal = await _repository.proposeSchedule(language: 'vi');
+      final proposal = await _repository.proposeSchedule(language: 'en');
       await _checkPendingProposal();
       if (!mounted) return;
       _showProposalSheet(proposal);
@@ -238,42 +220,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
   }
 
-  Future<void> _handleApprovePendingProposal() async {
-    if (_pendingProposal == null) return;
-    final proposalId = _pendingProposal!.proposalId;
-    setState(() => _isProposing = true);
-
-    try {
-      if (proposalId != null && !proposalId.startsWith('local_')) {
-        await _repository.approveProposal(proposalId);
-      } else {
-        await _repository.applyProposalSlotsDirectly(_pendingProposal!.slots);
-      }
-
-      setState(() => _pendingProposal = null);
-      await _loadSchedule();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Proposal approved! Focus slots added to your schedule.'),
-          backgroundColor: Color(0xFF00D992),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to approve proposal: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isProposing = false);
-    }
-  }
 
   void _showProposalSheet(AiProposalResponse proposal) {
     showModalBottomSheet(
@@ -330,7 +276,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ),
         title: const Text('Cancel Scheduled Slot', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
         content: Text(
-          'Are you sure you want to remove "${slot.title}" from your schedule?',
+          'Cancel this scheduled focus block for "${(slot.subTaskTitle != null && slot.subTaskTitle!.isNotEmpty) ? slot.subTaskTitle : slot.title}"?\n\nNote: This only cancels the time slot on your calendar. Your task in Projects remains untouched and will NOT be deleted.',
           style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
         ),
         actions: [
@@ -341,7 +287,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B6B)),
-            child: const Text('Remove Slot', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text('Cancel Slot', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -354,7 +300,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Slot removed successfully.'),
+              content: Text('Scheduled slot cancelled. Task remains in Projects.'),
               backgroundColor: Color(0xFF00D992),
               behavior: SnackBarBehavior.floating,
             ),
@@ -422,15 +368,58 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          slot.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
+                        if (slot.subTaskTitle != null && slot.subTaskTitle!.isNotEmpty) ...[
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00D992).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'SUBTASK',
+                                  style: TextStyle(color: Color(0xFF00D992), fontSize: 9, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
+                          const SizedBox(height: 4),
+                          Text(
+                            slot.subTaskTitle!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              height: 1.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.assignment_outlined, size: 13, color: Color(0xFF8B949E)),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  'Task: ${slot.title}',
+                                  style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 13),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          Text(
+                            slot.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
                         if (slot.projectName != null && slot.projectName!.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Row(
@@ -452,6 +441,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              if (slot.clientName != null && slot.clientName!.isNotEmpty) ...[
+                                const Text(' · ', style: TextStyle(color: Color(0xFF666666))),
+                                Text(
+                                  slot.clientName!,
+                                  style: const TextStyle(color: Color(0xFF8B949E), fontSize: 11),
+                                ),
+                              ],
                             ],
                           ),
                         ],
@@ -480,6 +476,31 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               const Divider(color: Color(0xFF262626), height: 1),
               const SizedBox(height: 16),
 
+              // Hierarchy
+              _buildDetailRow(
+                Icons.assignment,
+                'Task',
+                slot.title,
+              ),
+              if (slot.subTaskTitle != null && slot.subTaskTitle!.isNotEmpty)
+                _buildDetailRow(
+                  Icons.subdirectory_arrow_right,
+                  'Subtask',
+                  slot.subTaskTitle!,
+                ),
+              if (slot.projectName != null && slot.projectName!.isNotEmpty)
+                _buildDetailRow(
+                  Icons.folder_outlined,
+                  'Project',
+                  slot.projectName!,
+                ),
+              if (slot.clientName != null && slot.clientName!.isNotEmpty)
+                _buildDetailRow(
+                  Icons.business,
+                  'Client',
+                  slot.clientName!,
+                ),
+
               // Timings
               _buildDetailRow(
                 Icons.schedule,
@@ -488,11 +509,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     ? 'All Day (${slot.start.month}/${slot.start.day})'
                     : '${slot.start.hour.toString().padLeft(2, '0')}:${slot.start.minute.toString().padLeft(2, '0')} – ${slot.end.hour.toString().padLeft(2, '0')}:${slot.end.minute.toString().padLeft(2, '0')}',
               ),
-              _buildDetailRow(
-                Icons.timelapse,
-                'Duration',
-                durString,
-              ),
+              if (durString.isNotEmpty && !slot.isAllDay)
+                _buildDetailRow(
+                  Icons.timelapse,
+                  'Duration',
+                  durString,
+                ),
               _buildDetailRow(
                 Icons.category_outlined,
                 'Source / Type',
@@ -531,9 +553,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       child: const Text('Close', style: TextStyle(color: Colors.white)),
                     ),
                   ),
-                  if (slot.source.toLowerCase() == 'slot' || slot.taskId != null) ...[
+                  if (slot.source.toLowerCase() == 'slot' && slot.id.isNotEmpty && !slot.id.startsWith('task_') && !slot.id.startsWith('deadline_')) ...[
                     const SizedBox(width: 12),
                     Expanded(
+                      flex: 2,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF221111),
@@ -546,8 +569,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                           Navigator.pop(ctx);
                           _handleCancelSlot(slot);
                         },
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('Remove Slot', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        icon: const Icon(Icons.event_busy, size: 16),
+                        label: const Text('Cancel Scheduled Slot', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       ),
                     ),
                   ],
@@ -618,56 +641,83 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 : const Icon(Icons.sync, color: Color(0xFF00D992), size: 20),
             onPressed: _isSyncing ? null : _handleSyncGoogle,
           ),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                tooltip: 'AI Auto-schedule',
-                icon: _isProposing
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00D992)),
-                      )
-                    : const Icon(Icons.auto_awesome, color: Color(0xFF00D992), size: 20),
-                onPressed: _isProposing ? null : _handleProposeAi,
-              ),
-              if (_pendingProposal != null && !_isProposing)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF00D992),
-                      shape: BoxShape.circle,
-                    ),
+          if (_pendingProposal != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF00D992).withValues(alpha: 0.15),
+                  foregroundColor: const Color(0xFF00D992),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Color(0xFF00D992)),
                   ),
                 ),
-            ],
-          ),
+                onPressed: () => _showProposalSheet(_pendingProposal!),
+                icon: const Icon(Icons.auto_awesome, size: 14),
+                label: Text(
+                  'AI Plan (${_pendingProposal!.slots.length})',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'AI Focus Scheduling',
+              icon: _isProposing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00D992)),
+                    )
+                  : const Icon(Icons.auto_awesome, color: Color(0xFF00D992), size: 20),
+              onPressed: _isProposing ? null : _handleProposeAi,
+            ),
           const SizedBox(width: 8),
         ],
       ),
+      floatingActionButton: _pendingProposal != null
+          ? FloatingActionButton.extended(
+              backgroundColor: const Color(0xFF00D992),
+              foregroundColor: const Color(0xFF101010),
+              elevation: 4,
+              onPressed: () => _showProposalSheet(_pendingProposal!),
+              icon: const Icon(Icons.auto_awesome, size: 18),
+              label: Text(
+                'Review AI Plan (${_pendingProposal!.slots.length})',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            )
+          : FloatingActionButton.extended(
+              backgroundColor: const Color(0xFF1E1E1E),
+              foregroundColor: const Color(0xFF00D992),
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: const BorderSide(color: Color(0xFF00D992), width: 1.2),
+              ),
+              onPressed: _isProposing ? null : _handleProposeAi,
+              icon: _isProposing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00D992)),
+                    )
+                  : const Icon(Icons.auto_awesome, size: 18),
+              label: Text(
+                _isProposing ? 'Optimizing...' : 'AI Schedule',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
       body: SafeArea(
         child: Column(
           children: [
-            // AI Schedule Proposal Card / Banner
-            if (_pendingProposal != null)
-              _buildPendingProposalCard()
-            else
-              _buildAiProposeBanner(),
-
             // Navigator Row: < Today > + Period Label + View Mode Selector (Week/Month)
             _buildTimelineNavigator(),
+            const SizedBox(height: 6),
 
-            // Filter Chips (All items, Priority, Capstone, Deep work)
-            _buildFilterChips(),
-
-            const SizedBox(height: 8),
-
-            // Main Calendar View: Week or Month (strictly calendar, 0 metric boxes)
+            // Main Calendar View: Week or Month (strictly unobstructed full calendar)
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Color(0xFF00D992)))
@@ -682,313 +732,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAiProposeBanner() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF262626)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF00D992).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Icon(Icons.auto_awesome, color: Color(0xFF00D992), size: 16),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'AI Focus Scheduling',
-                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Propose optimal focus blocks with Neural Engine',
-                  style: TextStyle(color: Color(0xFF8B949E), fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: _isProposing ? null : _handleProposeAi,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00D992),
-              foregroundColor: const Color(0xFF101010),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-            icon: _isProposing
-                ? const SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF101010)),
-                  )
-                : const Icon(Icons.bolt, size: 14),
-            label: const Text('Propose', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPendingProposalCard() {
-    if (_pendingProposal == null) return const SizedBox.shrink();
-    final p = _pendingProposal!;
-    final totalMins = p.slots.fold<int>(0, (sum, s) => sum + s.proposedMinutes);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF00D992).withValues(alpha: 0.4),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00D992).withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header / Summary Row
-          InkWell(
-            onTap: () => setState(() => _isProposalExpanded = !_isProposalExpanded),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00D992).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.auto_awesome, color: Color(0xFF00D992), size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Text(
-                              'AI SCHEDULE PROPOSAL',
-                              style: TextStyle(
-                                color: Color(0xFF00D992),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: p.isFeasible
-                                    ? const Color(0xFF00D992).withValues(alpha: 0.15)
-                                    : const Color(0xFFFF9800).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                p.isFeasible ? 'FEASIBLE' : 'UNDERALLOCATED',
-                                style: TextStyle(
-                                  color: p.isFeasible ? const Color(0xFF00D992) : const Color(0xFFFF9800),
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${p.slots.length} proposed slots  •  ${totalMins}m focus time',
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    _isProposalExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    color: const Color(0xFF8B949E),
-                    size: 20,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Expanded Content
-          if (_isProposalExpanded) ...[
-            const Divider(color: Color(0xFF262626), height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Explanation
-                  if (p.explanation.isNotEmpty)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF101010),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFF262626)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.psychology, color: Color(0xFF00D992), size: 14),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              p.explanation,
-                              style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 11, height: 1.3),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  // Slots List Preview
-                  if (p.slots.isNotEmpty) ...[
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 150),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: p.slots.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 5),
-                        itemBuilder: (ctx, i) {
-                          final slot = p.slots[i];
-                          final timeStr =
-                              '${slot.start.hour.toString().padLeft(2, '0')}:${slot.start.minute.toString().padLeft(2, '0')} - ${slot.end.hour.toString().padLeft(2, '0')}:${slot.end.minute.toString().padLeft(2, '0')}';
-                          final dateStr = '${slot.start.day}/${slot.start.month}';
-
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF121212),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFF262626)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF00D992).withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    dateStr,
-                                    style: const TextStyle(color: Color(0xFF00D992), fontSize: 10, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        slot.taskTitle ?? 'Focus Task',
-                                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        '$timeStr (${slot.proposedMinutes}m)',
-                                        style: const TextStyle(color: Color(0xFF8B949E), fontSize: 10),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'Proposed',
-                                    style: TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 10),
-
-                  // Actions: Review All vs Approve Now
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showProposalSheet(p),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFF3E3E3E)),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          ),
-                          icon: const Icon(Icons.visibility_outlined, size: 14),
-                          label: const Text('Review', style: TextStyle(fontSize: 11)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _isProposing ? null : _handleApprovePendingProposal,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00D992),
-                            foregroundColor: const Color(0xFF101010),
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          ),
-                          icon: _isProposing
-                              ? const SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF101010)),
-                                )
-                              : const Icon(Icons.check_circle_outline, size: 14),
-                          label: const Text('Approve All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -1113,68 +856,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             fontWeight: active ? FontWeight.bold : FontWeight.w500,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildFilterChips() {
-    final filters = [
-      ('all', 'All items'),
-      ('priority', 'Priority'),
-      ('capstone', 'Capstone'),
-      ('deep', 'Deep work'),
-      if (_pendingProposal != null)
-        ('proposal', '⚡ AI Proposal (${_pendingProposal!.slots.length})'),
-    ];
-
-    return Container(
-      height: 36,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        itemCount: filters.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (ctx, i) {
-          final f = filters[i];
-          final isProposalChip = f.$1 == 'proposal';
-          final active = _filter == f.$1;
-
-          return InkWell(
-            onTap: () {
-              if (isProposalChip) {
-                _showProposalSheet(_pendingProposal!);
-              } else {
-                setState(() => _filter = f.$1);
-              }
-            },
-            borderRadius: BorderRadius.circular(9999),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: isProposalChip
-                    ? const Color(0xFF00D992).withValues(alpha: 0.15)
-                    : (active ? const Color(0xFF00D992).withValues(alpha: 0.1) : const Color(0xFF161616)),
-                borderRadius: BorderRadius.circular(9999),
-                border: Border.all(
-                  color: (active || isProposalChip)
-                      ? const Color(0xFF00D992)
-                      : const Color(0xFF2E2E2E),
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  f.$2,
-                  style: TextStyle(
-                    color: (active || isProposalChip) ? const Color(0xFF00D992) : const Color(0xFF8B949E),
-                    fontSize: 11,
-                    fontWeight: (active || isProposalChip) ? FontWeight.bold : FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }
@@ -1487,7 +1168,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                           const SizedBox(width: 2),
                                           Expanded(
                                             child: Text(
-                                              s.title,
+                                              (s.subTaskTitle != null && s.subTaskTitle!.isNotEmpty)
+                                                  ? s.subTaskTitle!
+                                                  : s.title,
                                               style: const TextStyle(color: Colors.white70, fontSize: 8),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -1551,30 +1234,45 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Widget _buildEventCard(CalendarSlotModel slot) {
-    final statusColor = _getStatusColor(slot.status);
+    final isDeadline = slot.source.toLowerCase() == 'deadline';
+    final isGoogle = slot.source.toLowerCase() == 'google';
+    final isSubtask = slot.subTaskTitle != null && slot.subTaskTitle!.trim().isNotEmpty;
+    final statusColor = isDeadline
+        ? const Color(0xFFFF9800)
+        : (isGoogle ? const Color(0xFF38BDF8) : _getStatusColor(slot.status));
     final projColor = _getProjectAccentColor(slot.projectName);
-    final timeStr = slot.isAllDay
-        ? 'All day'
+
+    final timeStr = slot.isAllDay || isDeadline
+        ? (isDeadline ? 'Due today' : 'All day')
         : '${slot.start.hour.toString().padLeft(2, '0')}:${slot.start.minute.toString().padLeft(2, '0')} – ${slot.end.hour.toString().padLeft(2, '0')}:${slot.end.minute.toString().padLeft(2, '0')}';
+
+    final durMinutes = slot.end.difference(slot.start).inMinutes;
+    final durString = (slot.isAllDay || isDeadline)
+        ? ''
+        : (durMinutes >= 60 ? '${(durMinutes / 60.0).toStringAsFixed(1)}h' : '${durMinutes}m');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF161616),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF262626)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDeadline
+              ? const Color(0xFFFF9800).withValues(alpha: 0.3)
+              : const Color(0xFF262626),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           onTap: () => _showEventDetailSheet(slot),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Status Indicator Dot
+                // Status Indicator Dot or Icon
                 Container(
                   width: 8,
                   height: 8,
@@ -1588,53 +1286,152 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        slot.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.access_time, size: 12, color: Color(0xFF8B949E)),
-                              const SizedBox(width: 4),
-                              Text(timeStr, style: const TextStyle(color: Color(0xFF8B949E), fontSize: 11)),
-                            ],
-                          ),
-                          if (slot.projectName != null && slot.projectName!.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: projColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                slot.projectName!,
-                                style: TextStyle(color: projColor, fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          if (slot.taskType != null && slot.taskType!.isNotEmpty)
+                      // Subtask or Main Task Header
+                      if (isSubtask) ...[
+                        Row(
+                          children: [
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF222222),
+                                color: const Color(0xFF00D992).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(3),
                               ),
-                              child: Text(
-                                slot.taskType!,
-                                style: const TextStyle(color: Color(0xFF777777), fontSize: 9),
+                              child: const Text(
+                                'SUBTASK',
+                                style: TextStyle(color: Color(0xFF00D992), fontSize: 8.5, fontWeight: FontWeight.bold),
                               ),
                             ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                slot.subTaskTitle!,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.assignment_outlined, size: 12, color: Color(0xFF8B949E)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Task: ${slot.title}',
+                                style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 11),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            if (isDeadline) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF9800).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: const Text(
+                                  'DEADLINE',
+                                  style: TextStyle(color: Color(0xFFFF9800), fontSize: 8.5, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Expanded(
+                              child: Text(
+                                slot.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      const SizedBox(height: 6),
+
+                      // Meta Badges (Project, Client, Time, Status)
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          // Time & Duration
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isDeadline ? Icons.flag_outlined : Icons.access_time,
+                                size: 11,
+                                color: const Color(0xFF8B949E),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                timeStr,
+                                style: const TextStyle(color: Color(0xFF8B949E), fontSize: 10.5),
+                              ),
+                              if (durString.isNotEmpty) ...[
+                                const Text(' · ', style: TextStyle(color: Color(0xFF555555))),
+                                Text(durString, style: const TextStyle(color: Color(0xFF8B949E), fontSize: 10.5)),
+                              ],
+                            ],
+                          ),
+
+                          // Project Tag
+                          if (slot.projectName != null && slot.projectName!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: projColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: projColor.withValues(alpha: 0.3), width: 0.8),
+                              ),
+                              child: Text(
+                                slot.projectName!,
+                                style: TextStyle(color: projColor, fontSize: 9.5, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+
+                          // Client Tag
+                          if (slot.clientName != null && slot.clientName!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF222222),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                slot.clientName!,
+                                style: const TextStyle(color: Color(0xFF888888), fontSize: 9),
+                              ),
+                            ),
+
+                          // Status Tag
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              isDeadline ? 'Due' : (slot.status ?? slot.source),
+                              style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ],
                       ),
                     ],

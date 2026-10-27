@@ -3,10 +3,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../onboarding/data/onboarding_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project_models.dart';
-import 'create_project_dialog.dart';
-import 'create_task_dialog.dart';
-import 'milestone_form_dialog.dart';
-import '../widgets/ai_task_decompose_sheet.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final ProjectModel project;
@@ -29,6 +25,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   String? _defaultDomainId;
   bool _isLoadingTasks = true;
+  String _taskFilter = 'all'; // 'all', 'pending', 'done'
 
   @override
   void initState() {
@@ -93,43 +90,64 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     } catch (_) {}
   }
 
-  Future<void> _handleEditProject() async {
-    final updated = await showDialog<ProjectModel>(
-      context: context,
-      builder: (_) => ProjectFormDialog(project: _project),
-    );
-
-    if (updated != null && mounted) {
-      setState(() => _project = updated);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Project "${updated.name}" updated successfully!'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
   Future<void> _toggleDone(TaskModel task) async {
     final newStatus = task.status == 'Done' ? 'ToDo' : 'Done';
+    // Optimistic local update
+    setState(() {
+      final idx = _tasks.indexWhere((t) => t.id == task.id);
+      if (idx != -1) {
+        _tasks[idx] = task.copyWith(
+          status: newStatus,
+          completedAt: newStatus == 'Done' ? DateTime.now() : null,
+        );
+      }
+    });
+
     try {
       await _repository.updateTaskStatus(task, newStatus, _defaultDomainId ?? '');
       _loadTasks();
-      if (newStatus == 'Done' && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Completed! AI is calibrating your K_bias factor...'),
-            backgroundColor: AppColors.accentGreen,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     } catch (e) {
+      _loadTasks();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleSubTask(SubTaskModel subTask, String taskId) async {
+    final newStatus = subTask.isDone ? 'Pending' : 'Done';
+
+    // Optimistic local update
+    setState(() {
+      final list = _subTasksMap[taskId];
+      if (list != null) {
+        final idx = list.indexWhere((s) => s.id == subTask.id);
+        if (idx != -1) {
+          list[idx] = list[idx].copyWith(status: newStatus);
+        }
+      }
+    });
+
+    try {
+      await _repository.updateSubTask(subTask.id, {
+        'title': subTask.title,
+        'estimatedMinutes': subTask.estimatedMinutes,
+        'orderIndex': subTask.orderIndex,
+        'status': newStatus,
+      });
+      _loadSubTasksForTask(taskId);
+    } catch (e) {
+      _loadSubTasksForTask(taskId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update subtask: $e'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
@@ -189,306 +207,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
-  Future<void> _showAddSubTaskDialog(String taskId) async {
-    final titleCtrl = TextEditingController();
-    final minutesCtrl = TextEditingController(text: '30');
-
-    final created = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.surfaceBorder),
-        ),
-        title: const Text('Add Subtask', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleCtrl,
-              autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                hintText: 'Subtask title...',
-                hintStyle: TextStyle(color: AppColors.textMuted),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: minutesCtrl,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: 'Duration (minutes)',
-                labelStyle: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.onPrimary,
-            ),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-
-    if (created == true && titleCtrl.text.trim().isNotEmpty) {
-      final mins = int.tryParse(minutesCtrl.text) ?? 30;
-      final existingCount = _subTasksMap[taskId]?.length ?? 0;
-      try {
-        await _repository.createSubTask(
-          taskId,
-          titleCtrl.text.trim(),
-          mins,
-          existingCount + 1,
-        );
-        _loadSubTasksForTask(taskId);
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString().replaceAll('Exception: ', '')),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-      }
-    }
+  List<TaskModel> get _filteredTasks {
+    return _tasks.where((t) {
+      if (_taskFilter == 'pending' && t.isDone) return false;
+      if (_taskFilter == 'done' && !t.isDone) return false;
+      return true;
+    }).toList();
   }
 
-  void _openAiDecomposeForTask(TaskModel task) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => AiTaskDecomposeSheet(
-        task: task,
-        projectName: _project.name,
-        onApplied: () {
-          setState(() {
-            _expandedTaskIds.add(task.id);
-          });
-          _loadSubTasksForTask(task.id);
-        },
-      ),
-    );
-  }
-
-  void _showSelectTaskForAiDecompose() {
-    if (_tasks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No tasks in this project yet. Please create a task first.'),
-          backgroundColor: AppColors.primary,
-        ),
-      );
-      _openCreateTaskDialog();
-      return;
-    }
-
-    if (_tasks.length == 1) {
-      _openAiDecomposeForTask(_tasks.first);
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: const [
-                  Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Select Task to AI Decompose',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Choose a task to break down into 3-5 calibrated subtasks',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.45,
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: _tasks.length,
-                  separatorBuilder: (_, _) => const Divider(color: AppColors.surfaceBorder, height: 1),
-                  itemBuilder: (_, index) {
-                    final task = _tasks[index];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      leading: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.playlist_add_check, size: 16, color: AppColors.primary),
-                      ),
-                      title: Text(
-                        task.title,
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '${task.estimatedMinutes ?? 30}m estimate  •  ${task.taskType}',
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                      ),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _openAiDecomposeForTask(task);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _openCreateTaskDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => CreateTaskDialog(
-        projectId: _project.id,
-        initialMilestones: _milestones,
-        onTaskCreated: () {
-          _loadTasks();
-          _loadMilestones();
-        },
-      ),
-    );
-  }
-
-  Future<void> _openCreateMilestoneDialog() async {
-    final created = await showDialog<MilestoneModel>(
-      context: context,
-      builder: (_) => MilestoneFormDialog(
-        projectId: _project.id,
-        defaultOrderIndex: _milestones.length + 1,
-      ),
-    );
-
-    if (created != null && mounted) {
-      _loadMilestones();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Milestone "${created.name}" created successfully!'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  Future<void> _openEditMilestoneDialog(MilestoneModel m) async {
-    final updated = await showDialog<MilestoneModel>(
-      context: context,
-      builder: (_) => MilestoneFormDialog(
-        projectId: _project.id,
-        milestone: m,
-      ),
-    );
-
-    if (updated != null && mounted) {
-      _loadMilestones();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Milestone "${updated.name}" updated successfully!'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  Future<void> _deleteMilestone(MilestoneModel m) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.surfaceBorder),
-        ),
-        title: const Text('Confirm Deletion', style: TextStyle(color: AppColors.textPrimary)),
-        content: Text(
-          'Are you sure you want to delete milestone "${m.name}"?',
-          style: const TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await _repository.deleteMilestone(m.id);
-        _loadMilestones();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Milestone deleted.'),
-              backgroundColor: AppColors.primary,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString().replaceAll('Exception: ', '')),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
-    }
-  }
+  int get _completedTaskCount => _tasks.where((t) => t.isDone).length;
+  int get _pendingTaskCount => _tasks.where((t) => !t.isDone).length;
 
   int get _overdueCount {
     final now = DateTime.now();
@@ -499,22 +227,26 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }).length;
   }
 
+  double get _taskCompletionRate {
+    if (_tasks.isEmpty) return 0.0;
+    return (_completedTaskCount / _tasks.length).clamp(0.0, 1.0);
+  }
+
+  String _getMilestoneName(String? milestoneId) {
+    if (milestoneId == null || milestoneId.isEmpty) return '';
+    final found = _milestones.where((m) => m.id == milestoneId);
+    if (found.isNotEmpty) return found.first.name;
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final totalDays = _project.totalDurationDays;
     final remainingDays = _project.daysLeft;
     final progressPct = (_project.timelineProgress * 100).round();
+    final taskRatePct = (_taskCompletionRate * 100).round();
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        elevation: 2,
-        onPressed: _openCreateTaskDialog,
-        icon: const Icon(Icons.add, size: 18),
-        label: const Text('Add Task', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.primary,
@@ -525,7 +257,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // 1. Top Bar (Back + Breadcrumb + Edit + Continue)
+              // 1. Top Bar (Back + Breadcrumb + Refresh)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -569,45 +301,33 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           ],
                         ),
                       ),
-                      // Edit Button (PUT /api/projects/{projectId})
-                      OutlinedButton.icon(
-                        onPressed: _handleEditProject,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textPrimary,
-                          backgroundColor: const Color(0xFF141414),
-                          side: const BorderSide(color: AppColors.surfaceBorder),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.surfaceBorder),
                         ),
-                        icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.textSecondary),
-                        label: const Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Continue Button
-                      ElevatedButton.icon(
-                        onPressed: _openCreateTaskDialog,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.onPrimary,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        child: IconButton(
+                          icon: const Icon(Icons.refresh, size: 18, color: AppColors.primary),
+                          onPressed: () async {
+                            await Future.wait([_refreshProject(), _loadTasks(), _loadMilestones()]);
+                          },
+                          tooltip: 'Refresh details',
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
                         ),
-                        icon: const Icon(Icons.rocket_launch, size: 14),
-                        label: const Text('Continue', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
                 ),
               ),
 
-              // 2. Hero Card (Status pill, Short ID, Title, Description)
+              // 2. Hero Card (Status pill, Short ID, Title, Description, Client)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(16),
@@ -654,6 +374,24 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                               _project.shortId,
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                             ),
+                            const Spacer(),
+                            if (_project.clientName != null && _project.clientName!.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141414),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: Text(
+                                  _project.clientName!,
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -661,7 +399,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           _project.name,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
-                            fontSize: 24,
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
                             letterSpacing: -0.5,
                           ),
@@ -670,7 +408,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         Text(
                           _project.description != null && _project.description!.isNotEmpty
                               ? _project.description!
-                              : 'No description provided.',
+                              : 'No description provided for this project.',
                           style: TextStyle(
                             color: _project.description != null && _project.description!.isNotEmpty
                                 ? AppColors.textSecondary
@@ -685,7 +423,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ),
 
-              // 3. KPI Strip (4 Stat Tiles: START, DEADLINE, DURATION, REMAINING)
+              // 3. Real Execution KPIs (Tasks, Completion Rate, Milestones, Deadline)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -698,32 +436,37 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         children: [
                           _buildStatTile(
                             width: width,
-                            label: 'START',
-                            value: _project.formattedStartDate,
-                            icon: Icons.calendar_month_outlined,
+                            label: 'TASKS',
+                            value: '${_tasks.length}',
+                            subtitle: '$_pendingTaskCount pending · $_completedTaskCount done',
+                            icon: Icons.checklist_outlined,
+                            iconColor: const Color(0xFF38BDF8),
+                          ),
+                          _buildStatTile(
+                            width: width,
+                            label: 'COMPLETION',
+                            value: '$taskRatePct%',
+                            subtitle: '$_completedTaskCount / ${_tasks.length} completed',
+                            icon: Icons.check_circle_outline,
+                            iconColor: const Color(0xFF00D992),
+                            valueColor: const Color(0xFF00D992),
+                          ),
+                          _buildStatTile(
+                            width: width,
+                            label: 'MILESTONES',
+                            value: '${_milestones.length}',
+                            subtitle: 'Web planned roadmap',
+                            icon: Icons.flag_outlined,
                             iconColor: AppColors.primary,
                           ),
                           _buildStatTile(
                             width: width,
                             label: 'DEADLINE',
-                            value: _project.formattedDeadline,
+                            value: remainingDays >= 0 ? '${remainingDays}d left' : 'Overdue',
+                            subtitle: _project.formattedDeadline,
                             icon: Icons.event_outlined,
-                            iconColor: AppColors.primary,
-                          ),
-                          _buildStatTile(
-                            width: width,
-                            label: 'DURATION',
-                            value: '$totalDays days',
-                            icon: Icons.schedule_outlined,
-                            iconColor: AppColors.primary,
-                          ),
-                          _buildStatTile(
-                            width: width,
-                            label: 'REMAINING',
-                            value: remainingDays >= 0 ? '$remainingDays days' : 'Overdue',
-                            icon: Icons.hourglass_empty_outlined,
-                            iconColor: remainingDays < 0 ? const Color(0xFFFF6B6B) : AppColors.primary,
-                            valueColor: remainingDays < 0 ? const Color(0xFFFF6B6B) : null,
+                            iconColor: remainingDays < 0 ? const Color(0xFFFF6B6B) : const Color(0xFFFBBF24),
+                            valueColor: remainingDays < 0 ? const Color(0xFFFF6B6B) : const Color(0xFFFBBF24),
                           ),
                         ],
                       );
@@ -732,12 +475,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ),
 
-              // 4. Timeline Card (Progress Bar with "Today" marker)
+              // 4. Timeline Schedule Progress Bar
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(16),
@@ -749,40 +492,26 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'TIMELINE',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'In progress',
-                                  style: TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                            const Text(
+                              'TIMELINE SCHEDULE',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
                             ),
                             Text(
-                              '$progressPct%',
+                              '$progressPct% elapsed',
                               style: const TextStyle(
                                 color: AppColors.primary,
-                                fontSize: 20,
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
 
                         // Progress Bar with "Today" Marker
                         LayoutBuilder(
@@ -837,18 +566,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                             );
                           },
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 28),
 
-                        // Foot dates
+                        // Start & Deadline labels
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _project.formattedStartDate,
+                              'Start: ${_project.formattedStartDate}',
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                             ),
                             Text(
-                              _project.formattedDeadline,
+                              'Due: ${_project.formattedDeadline}',
                               style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                             ),
                           ],
@@ -859,46 +588,57 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 ),
               ),
 
-              // 5. Milestones Section Header
+              // 5. Milestones Section Header (Web Managed)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
                         children: [
                           const Text(
-                            'MILESTONES',
+                            'Milestones',
                             style: TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 10,
+                              color: AppColors.textPrimary,
+                              fontSize: 17,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_milestones.length} milestones',
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF141414),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.surfaceBorder),
+                            ),
+                            child: Text(
+                              '${_milestones.length}',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      OutlinedButton.icon(
-                        onPressed: _openCreateMilestoneDialog,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          side: const BorderSide(color: AppColors.surfaceBorder),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.surfaceBorder),
                         ),
-                        icon: const Icon(Icons.add, size: 14, color: AppColors.primary),
-                        label: const Text('Add Milestone', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          'Web Planned',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -909,27 +649,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               if (_milestones.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: Container(
-                      padding: const EdgeInsets.all(18),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.surfaceBorder),
                       ),
                       child: Row(
-                        children: [
-                          const Icon(Icons.flag_outlined, size: 22, color: AppColors.textMuted),
-                          const SizedBox(width: 12),
-                          const Expanded(
+                        children: const [
+                          Icon(Icons.flag_outlined, size: 18, color: AppColors.textMuted),
+                          SizedBox(width: 10),
+                          Expanded(
                             child: Text(
-                              'No milestones yet. Milestones represent key phases.',
+                              'No milestones set. Milestones are organized on the Web hub.',
                               style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                             ),
-                          ),
-                          TextButton(
-                            onPressed: _openCreateMilestoneDialog,
-                            child: const Text('+ Add', style: TextStyle(color: AppColors.primary, fontSize: 12)),
                           ),
                         ],
                       ),
@@ -953,60 +689,83 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   ),
                 ),
 
-              // 6. Tasks Section Header
+              // 6. Tasks Section Header + Execution Filter Chips
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'TASKS',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
+                          Row(
+                            children: [
+                              const Text(
+                                'Tasks & Execution',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141414),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: Text(
+                                  '${_tasks.length}',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_tasks.length} tasks',
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                          if (_overdueCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFFF6B6B).withValues(alpha: 0.4)),
+                              ),
+                              child: Text(
+                                '! $_overdueCount OVERDUE',
+                                style: const TextStyle(
+                                  color: Color(0xFFFF6B6B),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
                             ),
-                          ),
                         ],
                       ),
-                      if (_overdueCount > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF6B6B).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFFF6B6B).withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            '! $_overdueCount OVERDUE',
-                            style: const TextStyle(
-                              color: Color(0xFFFF6B6B),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 10),
+
+                      // Task Filter Chips
+                      Row(
+                        children: [
+                          _buildTaskFilterChip('All', 'all', _tasks.length),
+                          const SizedBox(width: 8),
+                          _buildTaskFilterChip('Pending', 'pending', _pendingTaskCount),
+                          const SizedBox(width: 8),
+                          _buildTaskFilterChip('Done', 'done', _completedTaskCount),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
 
-              // 6. Tasks List
+              // Tasks List / Loading / Empty
               if (_isLoadingTasks)
                 const SliverToBoxAdapter(
                   child: Padding(
@@ -1014,10 +773,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
                   ),
                 )
-              else if (_tasks.isEmpty)
+              else if (_filteredTasks.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -1028,21 +787,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       alignment: Alignment.center,
                       child: Column(
                         children: [
-                          const Icon(Icons.playlist_add, size: 36, color: AppColors.textMuted),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'No tasks in this project yet.',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                          ),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            onPressed: _openCreateTaskDialog,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: AppColors.onPrimary,
+                          const Icon(Icons.playlist_add_check, size: 36, color: AppColors.textMuted),
+                          const SizedBox(height: 10),
+                          Text(
+                            _taskFilter == 'all'
+                                ? 'No tasks in this project yet.'
+                                : 'No $_taskFilter tasks found.',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
-                            icon: const Icon(Icons.add, size: 16),
-                            label: const Text('Add first task'),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Tasks and work packages are structured on the Web workspace.',
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
@@ -1051,127 +812,20 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final task = _tasks[index];
+                        final task = _filteredTasks[index];
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.only(bottom: 10),
                           child: _buildTaskCard(task),
                         );
                       },
-                      childCount: _tasks.length,
+                      childCount: _filteredTasks.length,
                     ),
                   ),
                 ),
-
-              // 7. Choose your flow (Direction cards)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 80),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'CHOOSE YOUR FLOW',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'How do you want to decompose this project?',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          // Card 1: Manual decompose
-                          Expanded(
-                            child: InkWell(
-                              onTap: _openCreateTaskDialog,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.surfaceBorder),
-                                ),
-                                child: const Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(Icons.checklist, color: AppColors.primary, size: 20),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Manual decompose',
-                                      style: TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      'Create tasks & subtasks yourself.',
-                                      style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-
-                          // Card 2: AI Decompose Task
-                          Expanded(
-                            child: InkWell(
-                              onTap: _showSelectTaskForAiDecompose,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.surfaceBorder),
-                                ),
-                                child: const Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'AI Decompose Task',
-                                      style: TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      'Break task into 3-5 subtasks with Kbias.',
-                                      style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -1183,6 +837,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     required double width,
     required String label,
     required String value,
+    required String subtitle,
     required IconData icon,
     required Color iconColor,
     Color? valueColor,
@@ -1192,49 +847,96 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.surfaceBorder),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF141414),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.surfaceBorder),
-            ),
-            child: Icon(icon, size: 16, color: iconColor),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              Icon(icon, size: 16, color: iconColor),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: valueColor ?? AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 8),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: valueColor ?? AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 11,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTaskFilterChip(String label, String value, int count) {
+    final isSelected = _taskFilter == value;
+    return InkWell(
+      onTap: () => setState(() => _taskFilter = value),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.surfaceBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary : const Color(0xFF141414),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  color: isSelected ? AppColors.onPrimary : AppColors.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1243,8 +945,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final isDone = task.isDone;
     final isExpanded = _expandedTaskIds.contains(task.id);
     final subtasks = _subTasksMap[task.id] ?? [];
+    final milestoneName = _getMilestoneName(task.milestoneId);
 
-    String dateStr = 'No date';
+    String dateStr = 'No deadline';
     if (task.deadline != null) {
       final m = ProjectModel.months[task.deadline!.month - 1];
       dateStr = '$m ${task.deadline!.day}';
@@ -1255,14 +958,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isExpanded ? AppColors.primary : AppColors.surfaceBorder,
+          color: isExpanded ? AppColors.primary.withValues(alpha: 0.6) : AppColors.surfaceBorder,
           width: isExpanded ? 1.2 : 1.0,
         ),
       ),
       child: Column(
         children: [
+          // Main Task Row
           InkWell(
             onTap: () {
               setState(() {
@@ -1274,23 +978,27 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 }
               });
             },
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.all(12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Dot indicator
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: isDone ? AppColors.primary : AppColors.textMuted,
-                      shape: BoxShape.circle,
+                  // Checkbox to toggle Done/ToDo
+                  InkWell(
+                    onTap: () => _toggleDone(task),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2, right: 8),
+                      child: Icon(
+                        isDone ? Icons.check_box : Icons.check_box_outline_blank,
+                        color: isDone ? AppColors.primary : AppColors.textMuted,
+                        size: 20,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
 
-                  // Title & Subtitle
+                  // Task Title and Tags
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1304,30 +1012,86 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                             decoration: isDone ? TextDecoration.lineThrough : null,
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Row(
+                        const SizedBox(height: 6),
+
+                        // Tags row
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
                           children: [
-                            Text(
-                              task.taskType,
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.calendar_today_outlined, size: 11, color: AppColors.primary),
-                            const SizedBox(width: 4),
-                            Text(
-                              dateStr,
-                              style: const TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                            // Milestone badge (if assigned)
+                            if (milestoneName.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141414),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: AppColors.surfaceBorder),
+                                ),
+                                child: Text(
+                                  milestoneName,
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+
+                            // Task Type
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: task.taskType.toLowerCase() == 'fixed'
+                                    ? Colors.orange.withValues(alpha: 0.15)
+                                    : const Color(0xFF141414),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: task.taskType.toLowerCase() == 'fixed'
+                                      ? Colors.orange.withValues(alpha: 0.4)
+                                      : AppColors.surfaceBorder,
+                                ),
+                              ),
+                              child: Text(
+                                task.taskType,
+                                style: TextStyle(
+                                  color: task.taskType.toLowerCase() == 'fixed'
+                                      ? Colors.orange
+                                      : AppColors.textMuted,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.timer_outlined, size: 11, color: AppColors.textMuted),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${durationMins}m',
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+
+                            // Deadline
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.event_outlined, size: 12, color: AppColors.primary),
+                                const SizedBox(width: 3),
+                                Text(
+                                  dateStr,
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // Duration
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.timer_outlined, size: 12, color: AppColors.textMuted),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${durationMins}m',
+                                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -1335,53 +1099,36 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     ),
                   ),
 
-                  // Status badge (TODO / DONE)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141414),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.surfaceBorder),
-                    ),
-                    child: Text(
-                      isDone ? 'DONE' : 'TODO',
-                      style: TextStyle(
-                        color: isDone ? AppColors.primary : AppColors.textSecondary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  // Actions: Expand arrow & delete
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                        onPressed: () => _deleteTask(task),
+                        tooltip: 'Delete task',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-
-                  // AI Decompose quick button
-                  IconButton(
-                    icon: const Icon(Icons.auto_awesome, size: 16, color: AppColors.primary),
-                    tooltip: 'AI Decompose Task',
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => _openAiDecomposeForTask(task),
-                  ),
-                  const SizedBox(width: 4),
-
-                  // Chevron
-                  Icon(
-                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    size: 18,
-                    color: AppColors.textMuted,
+                      Icon(
+                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        size: 20,
+                        color: AppColors.textMuted,
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
 
-          // Expanded Subtasks Content
+          // Subtasks Checklist (Expanded)
           if (isExpanded)
             Container(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               decoration: const BoxDecoration(
                 color: Color(0xFF121212),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(14)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1392,149 +1139,63 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Subtasks',
+                        'Subtasks Checklist',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Row(
-                        children: [
-                          InkWell(
-                            onTap: () => _openAiDecomposeForTask(task),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.auto_awesome, size: 12, color: AppColors.primary),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'AI Decompose',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          InkWell(
-                            onTap: () => _showAddSubTaskDialog(task.id),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.add, size: 14, color: AppColors.primary),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Add subtask',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      Text(
+                        '${subtasks.where((s) => s.isDone).length}/${subtasks.length} done',
+                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
+
                   if (subtasks.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_box_outline_blank, size: 14, color: AppColors.textMuted),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'No subtasks yet.',
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => _openAiDecomposeForTask(task),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                              side: const BorderSide(color: AppColors.surfaceBorder),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                            ),
-                            icon: const Icon(Icons.auto_awesome, size: 12, color: AppColors.primary),
-                            label: const Text('AI Decompose', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'No subtasks break down. You can check off the parent task directly.',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                       ),
                     )
                   else
                     ...subtasks.map((st) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Icon(
-                              st.isDone ? Icons.check_circle : Icons.radio_button_unchecked,
-                              size: 14,
-                              color: st.isDone ? AppColors.primary : AppColors.textMuted,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                st.title,
-                                style: TextStyle(
-                                  color: st.isDone ? AppColors.textMuted : AppColors.textPrimary,
-                                  fontSize: 12,
-                                  decoration: st.isDone ? TextDecoration.lineThrough : null,
+                      return InkWell(
+                        onTap: () => _toggleSubTask(st, task.id),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                st.isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+                                size: 16,
+                                color: st.isDone ? AppColors.primary : AppColors.textMuted,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  st.title,
+                                  style: TextStyle(
+                                    color: st.isDone ? AppColors.textMuted : AppColors.textPrimary,
+                                    fontSize: 13,
+                                    decoration: st.isDone ? TextDecoration.lineThrough : null,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              '${st.estimatedMinutes}m',
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
-                            ),
-                          ],
+                              Text(
+                                '${st.estimatedMinutes}m',
+                                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     }),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => _toggleDone(task),
-                        icon: Icon(
-                          isDone ? Icons.undo : Icons.check,
-                          size: 14,
-                          color: AppColors.primary,
-                        ),
-                        label: Text(
-                          isDone ? 'Mark as Todo' : 'Mark as Done',
-                          style: const TextStyle(color: AppColors.primary, fontSize: 11),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: () => _deleteTask(task),
-                        icon: const Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
-                        label: const Text(
-                          'Delete',
-                          style: TextStyle(color: Colors.redAccent, fontSize: 11),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -1651,45 +1312,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   ),
                 ],
               ),
-            ),
-
-            // Edit / Delete Menu
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textMuted),
-              color: AppColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: const BorderSide(color: AppColors.surfaceBorder),
-              ),
-              onSelected: (val) {
-                if (val == 'edit') {
-                  _openEditMilestoneDialog(m);
-                } else if (val == 'delete') {
-                  _deleteMilestone(m);
-                }
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_outlined, size: 16, color: AppColors.textSecondary),
-                      SizedBox(width: 8),
-                      Text('Edit Milestone', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
-                      SizedBox(width: 8),
-                      Text('Delete Milestone', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ],
         ),

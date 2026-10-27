@@ -249,6 +249,40 @@ class TaskModel {
 
   bool get isDone => status == 'Done' || status == 'Completed';
 
+  TaskModel copyWith({
+    String? id,
+    String? projectId,
+    String? title,
+    String? description,
+    String? taskType,
+    String? status,
+    String? milestoneId,
+    String? domainId,
+    DateTime? deadline,
+    int? estimatedMinutes,
+    int? aiEstimatedMinutes,
+    DateTime? fixedStart,
+    DateTime? fixedEnd,
+    DateTime? completedAt,
+  }) {
+    return TaskModel(
+      id: id ?? this.id,
+      projectId: projectId ?? this.projectId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      taskType: taskType ?? this.taskType,
+      status: status ?? this.status,
+      milestoneId: milestoneId ?? this.milestoneId,
+      domainId: domainId ?? this.domainId,
+      deadline: deadline ?? this.deadline,
+      estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
+      aiEstimatedMinutes: aiEstimatedMinutes ?? this.aiEstimatedMinutes,
+      fixedStart: fixedStart ?? this.fixedStart,
+      fixedEnd: fixedEnd ?? this.fixedEnd,
+      completedAt: completedAt ?? this.completedAt,
+    );
+  }
+
   factory TaskModel.fromJson(Map<String, dynamic> json) {
     return TaskModel(
       id: json['id'] as String? ?? '',
@@ -304,6 +338,24 @@ class SubTaskModel {
       estimatedMinutes: json['estimatedMinutes'] as int? ?? 30,
       orderIndex: json['orderIndex'] as int? ?? 0,
       status: json['status'] as String? ?? 'Pending',
+    );
+  }
+
+  SubTaskModel copyWith({
+    String? id,
+    String? taskId,
+    String? title,
+    int? estimatedMinutes,
+    int? orderIndex,
+    String? status,
+  }) {
+    return SubTaskModel(
+      id: id ?? this.id,
+      taskId: taskId ?? this.taskId,
+      title: title ?? this.title,
+      estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
+      orderIndex: orderIndex ?? this.orderIndex,
+      status: status ?? this.status,
     );
   }
 }

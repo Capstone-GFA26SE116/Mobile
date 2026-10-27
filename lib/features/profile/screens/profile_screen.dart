@@ -64,13 +64,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Edit Full Name', style: TextStyle(color: AppColors.textPrimary)),
+        title: const Text('Edit Display Name', style: TextStyle(color: AppColors.textPrimary)),
         content: TextField(
           controller: nameCtrl,
           autofocus: true,
           style: const TextStyle(color: AppColors.textPrimary),
           decoration: const InputDecoration(
-            labelText: 'Display Name',
+            labelText: 'Full Name',
             labelStyle: TextStyle(color: AppColors.textSecondary),
           ),
         ),
@@ -95,8 +95,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Full name updated successfully!'),
-              backgroundColor: AppColors.accentGreen,
+              content: Text('Display name updated successfully!'),
+              backgroundColor: AppColors.primary,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -108,8 +109,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_profile == null) return;
     setState(() => _isSavingSettings = true);
 
-    final startStr = '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}:00';
-    final endStr = '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}:00';
+    final startStr =
+        '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}:00';
+    final endStr =
+        '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}:00';
 
     final success = await _repository.updateSettings(
       workDayStart: startStr,
@@ -126,98 +129,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       SnackBar(
         content: Text(
           success
-              ? 'Circadian & buffer settings updated successfully!'
-              : 'Settings saved locally.',
+              ? 'Working hours and buffer settings updated!'
+              : 'Settings updated locally.',
         ),
-        backgroundColor: AppColors.accentGreen,
+        backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Future<void> _handleCheckout(SubscriptionPlanItem plan) async {
-    if (plan.priceVnd == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Starter plan is already active.'),
-          backgroundColor: AppColors.primary,
-        ),
-      );
-      return;
-    }
-
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
-        ),
-      );
-
-      final checkout = await _repository.checkoutPayOs(plan.id);
-
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading
-
-      if (checkout.checkoutUrl != null) {
-        final uri = Uri.parse(checkout.checkoutUrl!);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } else {
-          _showCheckoutDialog(checkout);
-        }
-      } else {
-        _showCheckoutDialog(checkout);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
-  }
-
-  void _showCheckoutDialog(CheckoutResultModel checkout) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('PayOS Checkout', style: TextStyle(color: AppColors.textPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Order Code: #${checkout.orderCode}',
-                style: const TextStyle(color: AppColors.accentGreen, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('Status: ${checkout.status}',
-                style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            if (checkout.checkoutUrl != null)
-              ElevatedButton.icon(
-                onPressed: () {
-                  launchUrl(Uri.parse(checkout.checkoutUrl!), mode: LaunchMode.externalApplication);
-                },
-                icon: const Icon(Icons.open_in_browser, size: 16),
-                label: const Text('Open PayOS Payment Gateway'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-        ],
       ),
     );
   }
@@ -232,7 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           backgroundColor: AppColors.surface,
           title: const Text('Disconnect Google Calendar', style: TextStyle(color: AppColors.textPrimary)),
           content: const Text(
-            'Two-way synchronization between your schedule and Google Calendar events will be stopped.',
+            'Two-way synchronization between your schedule and Google Calendar will be stopped.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
           actions: [
@@ -258,6 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SnackBar(
                 content: Text('Google Calendar disconnected.'),
                 backgroundColor: AppColors.primary,
+                behavior: SnackBarBehavior.floating,
               ),
             );
           }
@@ -267,6 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SnackBar(
                 content: Text(e.toString().replaceAll('Exception: ', '')),
                 backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
               ),
             );
           }
@@ -285,174 +203,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SnackBar(
               content: Text('Google account authenticated and ready to sync.'),
               backgroundColor: AppColors.primary,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
       }
     }
-  }
-
-  void _showSubscriptionPlansSheet() async {
-    final plans = await _repository.getSubscriptionPlans();
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.8,
-          maxChildSize: 0.95,
-          minChildSize: 0.5,
-          expand: false,
-          builder: (_, scrollController) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: ListView(
-                controller: scrollController,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceBorder,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const Text(
-                    'Subscription Plans & Pricing',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Unlock the full power of cognitive optimization & AI Engine',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                  ),
-                  const SizedBox(height: 20),
-                  ...plans.map((plan) => _buildPlanItem(plan)),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPlanItem(SubscriptionPlanItem plan) {
-    final isPro = plan.code == 'PRO';
-    final priceStr = plan.priceVnd == 0
-        ? 'Free'
-        : '${(plan.priceVnd / 1000).toStringAsFixed(0)},000 VND / ${plan.billingCycle}';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isPro ? AppColors.primary.withValues(alpha: 0.08) : AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isPro ? AppColors.primary : AppColors.surfaceBorder,
-          width: isPro ? 1.5 : 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                plan.name,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (plan.isPopular)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'Most Popular',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            priceStr,
-            style: const TextStyle(
-              color: AppColors.accentGreen,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            plan.description,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          const Divider(color: AppColors.surfaceBorder),
-          const SizedBox(height: 8),
-          ...plan.features.map(
-            (f) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle_outline, color: AppColors.accentGreen, size: 15),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      f,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _handleCheckout(plan);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isPro ? AppColors.primary : AppColors.surface,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: Text(
-                plan.priceVnd == 0 ? 'Current Plan' : 'Upgrade via PayOS',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _handleLogout() async {
@@ -509,476 +265,623 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final p = _profile!;
     final initials = p.fullName.trim().isNotEmpty
-        ? p.fullName.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase()
+        ? p.fullName
+            .trim()
+            .split(' ')
+            .map((e) => e.isNotEmpty ? e[0] : '')
+            .take(2)
+            .join()
+            .toUpperCase()
         : 'M';
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: const Text(
-          'Profile & Settings',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // User card with Edit Name icon
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          backgroundColor: AppColors.surface,
+          onRefresh: _loadProfile,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header Title
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Flexible(
-                              child: Text(
-                                p.fullName,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            InkWell(
-                              onTap: _handleEditName,
-                              child: const Icon(Icons.edit, size: 15, color: AppColors.primary),
+                            const SizedBox(width: 7),
+                            const Text(
+                              'SETTINGS & ACCOUNT',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          p.email,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            p.role,
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Profile',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Subscription Plan banner
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.workspace_premium, color: Colors.amber, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Subscription Plan',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.surfaceBorder),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.accentGreen.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          p.planName,
-                          style: const TextStyle(
-                            color: AppColors.accentGreen,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
+                      child: IconButton(
+                        icon: const Icon(Icons.refresh, size: 20, color: AppColors.primary),
+                        onPressed: _loadProfile,
+                        tooltip: 'Refresh profile',
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Access automated scheduling, AI Copilot, and cognitive planning bias correction.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _showSubscriptionPlansSheet,
-                    icon: const Icon(Icons.arrow_upward, size: 15, color: AppColors.primary),
-                    label: const Text('View Plans & Upgrade via PayOS'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+                  ],
+                ),
+                const SizedBox(height: 20),
 
-            // Google Calendar Sync status with Action button
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Column(
-                children: [
-                  Row(
+                // 1. User Card (Avatar + Full Name + Email + Role)
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: Row(
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBackground,
-                          borderRadius: BorderRadius.circular(8),
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: AppColors.primary,
+                        child: Text(
+                          initials,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
-                        child: const Icon(Icons.calendar_today, color: AppColors.textPrimary, size: 18),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Google Calendar',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    p.fullName,
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: _handleEditName,
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(2),
+                                    child: Icon(Icons.edit_outlined, size: 16, color: AppColors.primary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              p.email,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              p.googleCalendarStatus == 'Active'
-                                  ? 'Active real-time 2-way sync'
-                                  : 'Not connected',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                p.role,
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // 2. Subscription Information Card (Clean, Read-only on Mobile)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.workspace_premium_outlined, color: Color(0xFFFBBF24), size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Current Plan',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              p.planName,
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       Container(
-                        width: 10,
-                        height: 10,
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: p.googleCalendarStatus == 'Active'
-                              ? AppColors.accentGreen
-                              : Colors.orangeAccent,
-                          shape: BoxShape.circle,
+                          color: const Color(0xFF141414),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.surfaceBorder),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Icon(Icons.info_outline, size: 16, color: AppColors.textMuted),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Subscription plans, invoices, and payment methods are securely managed on the Metanoia Web platform.',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _handleGoogleCalendarAction,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: p.googleCalendarStatus == 'Active' ? Colors.redAccent : AppColors.primary,
-                        side: BorderSide(
-                          color: p.googleCalendarStatus == 'Active' ? Colors.redAccent.withValues(alpha: 0.4) : AppColors.primary,
-                        ),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: Text(
-                        p.googleCalendarStatus == 'Active'
-                            ? 'Disconnect Google Calendar'
-                            : 'Connect Google Calendar',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 14),
 
-            // Cognitive & Work Hours Settings
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.surfaceBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Circadian Rhythm & Buffer Settings',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+                // 3. Google Calendar Two-Way Synchronization
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceBorder),
                   ),
-                  const SizedBox(height: 14),
-
-                  // Work hours interactive picker
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Working Hours',
-                            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Tap to change',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-                          ),
-                        ],
-                      ),
                       Row(
                         children: [
-                          Ink(
+                          Container(
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
-                              color: AppColors.background,
+                              color: const Color(0xFF141414),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.6)),
+                              border: Border.all(color: AppColors.surfaceBorder),
                             ),
-                            child: InkWell(
-                              onTap: () async {
-                                final picked = await showTimePicker(
-                                  context: context,
-                                  initialTime: _workDayStart,
-                                );
-                                if (picked != null) {
-                                  setState(() => _workDayStart = picked);
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.access_time, size: 13, color: AppColors.primary),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
+                            child: const Icon(Icons.calendar_month_outlined, color: AppColors.primary, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Google Calendar Sync',
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  p.googleCalendarStatus == 'Active'
+                                      ? 'Connected • Two-way schedule sync'
+                                      : 'Not connected',
+                                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                ),
+                              ],
                             ),
                           ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 6),
-                            child: Text('-', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
-                          ),
-                          Ink(
+                          Container(
+                            width: 10,
+                            height: 10,
                             decoration: BoxDecoration(
-                              color: AppColors.background,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.6)),
-                            ),
-                            child: InkWell(
-                              onTap: () async {
-                                final picked = await showTimePicker(
-                                  context: context,
-                                  initialTime: _workDayEnd,
-                                );
-                                if (picked != null) {
-                                  setState(() => _workDayEnd = picked);
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.access_time, size: 13, color: AppColors.accentGreen),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              color: p.googleCalendarStatus == 'Active'
+                                  ? const Color(0xFF00D992)
+                                  : Colors.orangeAccent,
+                              shape: BoxShape.circle,
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _handleGoogleCalendarAction,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: p.googleCalendarStatus == 'Active'
+                                ? Colors.redAccent
+                                : AppColors.primary,
+                            side: BorderSide(
+                              color: p.googleCalendarStatus == 'Active'
+                                  ? Colors.redAccent.withValues(alpha: 0.4)
+                                  : AppColors.primary,
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: Text(
+                            p.googleCalendarStatus == 'Active'
+                                ? 'Disconnect Google Calendar'
+                                : 'Connect Google Calendar',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                ),
+                const SizedBox(height: 14),
 
-                  // Rest Buffer Minutes
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // 4. Working Hours & Buffer Preferences
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Rest Buffer (minutes)',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                      ),
-                      DropdownButton<int>(
-                        value: _bufferMinutes,
-                        dropdownColor: AppColors.surface,
-                        underline: const SizedBox(),
-                        style: const TextStyle(
-                          color: AppColors.accentGreen,
+                        'Working Hours & Preferences',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
+                          fontSize: 15,
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 5, child: Text('5 mins')),
-                          DropdownMenuItem(value: 10, child: Text('10 mins')),
-                          DropdownMenuItem(value: 15, child: Text('15 mins')),
-                          DropdownMenuItem(value: 20, child: Text('20 mins')),
-                          DropdownMenuItem(value: 30, child: Text('30 mins')),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Working Hours Interactive Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Working Hours',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Tap time to adjust',
+                                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Ink(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141414),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                                ),
+                                child: InkWell(
+                                  onTap: () async {
+                                    final picked = await showTimePicker(
+                                      context: context,
+                                      initialTime: _workDayStart,
+                                    );
+                                    if (picked != null) {
+                                      setState(() => _workDayStart = picked);
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.access_time, size: 13, color: AppColors.primary),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          '${_workDayStart.hour.toString().padLeft(2, '0')}:${_workDayStart.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 6),
+                                child: Text('-',
+                                    style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                              ),
+                              Ink(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141414),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFF00D992).withValues(alpha: 0.5)),
+                                ),
+                                child: InkWell(
+                                  onTap: () async {
+                                    final picked = await showTimePicker(
+                                      context: context,
+                                      initialTime: _workDayEnd,
+                                    );
+                                    if (picked != null) {
+                                      setState(() => _workDayEnd = picked);
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.access_time, size: 13, color: Color(0xFF00D992)),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          '${_workDayEnd.hour.toString().padLeft(2, '0')}:${_workDayEnd.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Rest Buffer Minutes
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Rest Buffer Between Slots',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Break time between tasks',
+                                style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                          DropdownButton<int>(
+                            value: _bufferMinutes,
+                            dropdownColor: AppColors.surface,
+                            underline: const SizedBox(),
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 5, child: Text('5 mins')),
+                              DropdownMenuItem(value: 10, child: Text('10 mins')),
+                              DropdownMenuItem(value: 15, child: Text('15 mins')),
+                              DropdownMenuItem(value: 20, child: Text('20 mins')),
+                              DropdownMenuItem(value: 30, child: Text('30 mins')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _bufferMinutes = val);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Weekend Scheduling Switch
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Allow weekend scheduling',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'Include Saturday & Sunday for task planning',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                        ),
+                        value: _worksOnWeekend,
+                        activeThumbColor: AppColors.primary,
                         onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _bufferMinutes = val);
-                          }
+                          setState(() => _worksOnWeekend = val);
                         },
+                      ),
+                      const SizedBox(height: 12),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSavingSettings ? null : _handleSaveSettings,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: _isSavingSettings
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Text('Save Preferences', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                ),
+                const SizedBox(height: 14),
 
-                  // Weekend Work Toggle
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Allow weekend scheduling',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                    value: _worksOnWeekend,
-                    activeThumbColor: AppColors.primary,
-                    onChanged: (val) {
-                      setState(() => _worksOnWeekend = val);
-                    },
+                // 5. Account Details & App Information
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.surfaceBorder),
                   ),
-                  const SizedBox(height: 10),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSavingSettings ? null : _handleSaveSettings,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Account & App Info',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
                       ),
-                      child: _isSavingSettings
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text('Save Settings Changes', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
+                      const SizedBox(height: 12),
+                      _buildInfoRow('Timezone', p.timeZone),
+                      const Divider(color: AppColors.surfaceBorder, height: 16),
+                      _buildInfoRow('Lead Reminder', '${p.reminderLeadMinutes} minutes before slot'),
+                      const Divider(color: AppColors.surfaceBorder, height: 16),
+                      _buildInfoRow('App Version', 'Metanoia Mobile v1.0.0'),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+                ),
+                const SizedBox(height: 24),
 
-            // Logout button
-            OutlinedButton.icon(
-              onPressed: _handleLogout,
-              icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
-              label: const Text(
-                'Log Out',
-                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.4)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
+                // Log Out Button
+                OutlinedButton.icon(
+                  onPressed: _handleLogout,
+                  icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.4)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
-            const SizedBox(height: 20),
-
-            // Footer
-            const Center(
-              child: Text(
-                'METANOIA Cognitive OS • v2.4\nPowered by Google DeepMind Gemini Flash 2.5',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11, height: 1.4),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }
