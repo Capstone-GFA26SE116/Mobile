@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
 
 # Widget Preview related
 .widget_preview/
@@ -62,3 +63,6 @@ local.properties
 google-services.json
 GoogleService-Info.plist
 
+
+# Avatar bundle build deps (assets/avatar/avatar_src)
+node_modules/
