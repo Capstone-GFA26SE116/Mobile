@@ -36,4 +36,11 @@ class AppConfig {
     }
     return dotenv.get('AI_SERVICE_URL', fallback: defaultAiUrl);
   }
+
+  static const String defaultGoogleServerClientId =
+      '1025047063269-c7u6uu9lvcjdsho711bkoksjr741cfuf.apps.googleusercontent.com';
+
+  /// Google Web Client ID for OAuth server authorization
+  static String get googleServerClientId =>
+      dotenv.get('GOOGLE_SERVER_CLIENT_ID', fallback: defaultGoogleServerClientId);
 }

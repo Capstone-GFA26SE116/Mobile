@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/storage_service.dart';
@@ -18,14 +19,18 @@ class AuthRepository {
   })  : _apiClient = apiClient ?? ApiClient(),
         _storageService = storageService ?? StorageService(),
         _googleSignIn = GoogleSignIn(
-          serverClientId: webClientId ??
-              '1025047063269-c7u6uu9lvcjdsho711bkoksjr741cfuf.apps.googleusercontent.com',
+          serverClientId: webClientId ?? AppConfig.googleServerClientId,
           scopes: ['email', 'profile'],
         );
 
   // 1. Google Sign-In Flow
   Future<AuthResponse> signInWithGoogle() async {
     try {
+      // Force account chooser so user can choose or switch to a different Google account
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {}
+
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         throw Exception('User cancelled Google sign-in.');

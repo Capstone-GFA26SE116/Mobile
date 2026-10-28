@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/storage_service.dart';
@@ -181,5 +182,8 @@ class ProfileRepository {
 
   Future<void> logout() async {
     await _storageService.clearTokens();
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
   }
 }
