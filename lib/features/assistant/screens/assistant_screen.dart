@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../data/assistant_repository.dart';
 import '../logic/assistant_listener.dart';
 import '../logic/assistant_voice.dart';
+import '../logic/briefing_speech.dart';
+import '../logic/intent_router.dart';
 import '../widgets/avatar_view.dart';
 
+/// Voice assistant: hold the mic, speak, and the avatar answers aloud
+/// (plan section 2, "Luồng một lần nói").
 class AssistantScreen extends StatefulWidget {
   const AssistantScreen({super.key});
 
@@ -13,28 +18,43 @@ class AssistantScreen extends StatefulWidget {
 }
 
 class _AssistantScreenState extends State<AssistantScreen> {
+  static const String _notHeard =
+      'Mình chưa nghe rõ, bạn giữ nút và nói lại nhé.';
+
   final AvatarController _avatar = AvatarController();
   late final AssistantVoice _voice = AssistantVoice(
-    onSpeakingChanged: _onSpeakingChanged,
+    onSpeakingChanged: _avatar.setSpeaking,
   );
   final AssistantListener _listener = AssistantListener();
-  bool _avatarReady = false;
-  bool _speaking = false;
-  String? _notice;
+  // Created on first use: it reads AppConfig, which needs .env to be loaded.
+  late final AssistantRepository _repository = AssistantRepository();
 
-  // Hold-to-talk state.
+  bool _avatarReady = false;
   bool _holding = false;
   bool _listening = false;
+  bool _thinking = false;
   String _heard = '';
+  String? _reply;
+  // Bumped on every mic press, so an answer that arrives after a new question is dropped.
+  int _turn = 0;
+
+  @override
+  void dispose() {
+    _listener.cancel();
+    _voice.dispose();
+    super.dispose();
+  }
 
   Future<void> _onMicDown() async {
     _holding = true;
+    _turn++;
     // Pressing the mic interrupts the avatar (AC5).
     await _voice.stop();
     _avatar.setEmotion(AvatarEmotion.neutral);
     setState(() {
-      _notice = null;
+      _thinking = false;
       _heard = '';
+      _reply = null;
     });
 
     final failure = await _listener.start(
@@ -45,11 +65,12 @@ class _AssistantScreenState extends State<AssistantScreen> {
     if (!mounted) return;
     if (failure != null) {
       _holding = false;
-      final message = failure == ListenFailure.permissionDenied
-          ? AssistantListener.permissionDeniedMessage
-          : AssistantListener.unavailableMessage;
-      setState(() => _notice = message);
-      await _voice.speak(message);
+      await _say(
+        failure == ListenFailure.permissionDenied
+            ? AssistantListener.permissionDeniedMessage
+            : AssistantListener.unavailableMessage,
+        AvatarEmotion.sad,
+      );
       return;
     }
     setState(() => _listening = true);
@@ -60,62 +81,52 @@ class _AssistantScreenState extends State<AssistantScreen> {
   Future<void> _onMicUp() async {
     _holding = false;
     if (!_listening) return;
+    final turn = _turn;
     final sentence = await _listener.finish();
-    if (!mounted) return;
-    // TEMP (step 5): only show the sentence; step 8 routes it (intent_router → briefing).
+    if (!mounted || turn != _turn) return;
     setState(() {
       _listening = false;
       _heard = sentence;
-      if (sentence.isEmpty) _notice = 'Mình chưa nghe rõ, bạn giữ nút và nói lại nhé.';
     });
+    await _answer(sentence, turn);
   }
 
-  // TEMP (step 4): fixed sentence to try the voice, replaced by the briefing in step 8.
-  static const String _testSentence =
-      'Xin chào, mình là trợ lý Metanoia. Bạn thử hỏi: Hôm nay tôi nên làm gì?';
-
-  @override
-  void dispose() {
-    _listener.cancel();
-    _voice.dispose();
-    super.dispose();
-  }
-
-  void _onSpeakingChanged(bool speaking) {
-    _avatar.setSpeaking(speaking);
-    if (mounted) setState(() => _speaking = speaking);
-  }
-
-  // TEMP (step 4): tap while speaking stops right away (T6), like pressing the mic will in step 8.
-  Future<void> _toggleTestVoice() async {
-    if (_voice.isBusy) {
-      await _voice.stop();
+  Future<void> _answer(String sentence, int turn) async {
+    if (sentence.trim().isEmpty) {
+      await _say(_notHeard, AvatarEmotion.neutral);
       return;
     }
-    final spoke = await _voice.speak(_testSentence);
-    if (!mounted) return;
-    setState(
-      () => _notice = spoke
-          ? null
-          : '${AssistantVoice.noVietnameseVoice}\n$_testSentence',
-    );
+    if (IntentRouter.route(sentence) != AssistantIntent.briefing) {
+      await _say(IntentRouter.fallbackReply, AvatarEmotion.neutral);
+      return;
+    }
+
+    _avatar.setEmotion(AvatarEmotion.thinking);
+    setState(() => _thinking = true);
+    try {
+      final briefing = await _repository.getTodayBriefing();
+      if (!mounted || turn != _turn) return;
+      await _say(
+        BriefingSpeech.build(briefing),
+        briefing.hasRisk ? AvatarEmotion.neutral : AvatarEmotion.happy,
+      );
+    } on AssistantException catch (e) {
+      if (!mounted || turn != _turn) return;
+      await _say(e.message, AvatarEmotion.sad);
+    }
   }
 
-  // TEMP (step 3): manual test controls, removed in step 8.
-  bool _testSpeaking = false;
-  AvatarEmotion _testEmotion = AvatarEmotion.neutral;
-
-  void _toggleTestSpeaking() {
-    setState(() => _testSpeaking = !_testSpeaking);
-    _avatar.setSpeaking(_testSpeaking);
-  }
-
-  void _nextTestEmotion() {
-    const emotions = AvatarEmotion.values;
-    setState(
-      () => _testEmotion = emotions[(_testEmotion.index + 1) % emotions.length],
-    );
-    _avatar.setEmotion(_testEmotion);
+  /// Shows [text] and reads it aloud; the text stays on screen when there is no Vietnamese voice.
+  Future<void> _say(String text, AvatarEmotion emotion) async {
+    _avatar.setEmotion(emotion);
+    setState(() {
+      _thinking = false;
+      _reply = text;
+    });
+    final spoke = await _voice.speak(text);
+    if (!spoke && mounted) {
+      setState(() => _reply = '$text\n(${AssistantVoice.noVietnameseVoice})');
+    }
   }
 
   @override
@@ -140,32 +151,55 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 onReady: () => setState(() => _avatarReady = true),
               ),
             ),
-            if (_heard.isNotEmpty || _listening)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  _heard.isEmpty ? 'Đang nghe…' : '“$_heard”',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
-            if (_notice != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  _notice!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                ),
-              ),
+            _buildConversation(),
             _buildMicButton(),
-            _buildTestControls(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildConversation() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        children: [
+          if (_listening && _heard.isEmpty)
+            const Text(
+              'Đang nghe…',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 15),
+            )
+          else if (_heard.isNotEmpty)
+            Text(
+              '“$_heard”',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 15,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          if (_thinking)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                'Đang xem lịch hôm nay…',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              ),
+            ),
+          if (_reply != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _reply!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -173,7 +207,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
   Widget _buildMicButton() {
     final active = _listening || _holding;
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
         children: [
           Listener(
@@ -188,7 +222,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 shape: BoxShape.circle,
                 color: _avatarReady
                     ? (active ? AppColors.primaryDeep : AppColors.primary)
-                    : AppColors.textSecondary,
+                    : AppColors.textMuted,
               ),
               child: const Icon(Icons.mic, color: Colors.white, size: 36),
             ),
@@ -196,59 +230,13 @@ class _AssistantScreenState extends State<AssistantScreen> {
           const SizedBox(height: 6),
           Text(
             active ? 'Thả tay để gửi' : 'Giữ để nói',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  // TEMP (steps 3–4): removed in step 8.
-  Widget _buildTestControls() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Column(
-        children: [
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _avatarReady ? _toggleTestVoice : null,
-              icon: Icon(_speaking ? Icons.stop : Icons.volume_up, size: 18),
-              label: Text(_speaking ? 'Dừng đọc' : 'Đọc thử'),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildAvatarTestRow(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatarTestRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _avatarReady ? _toggleTestSpeaking : null,
-            icon: Icon(
-              _testSpeaking ? Icons.stop : Icons.record_voice_over,
-              size: 18,
-            ),
-            label: Text(_testSpeaking ? 'Tắt miệng' : 'Bật miệng'),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _avatarReady ? _nextTestEmotion : null,
-            icon: const Icon(Icons.mood, size: 18),
-            label: Text('Biểu cảm: ${_testEmotion.name}'),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary),
-          ),
-        ),
-      ],
     );
   }
 }
