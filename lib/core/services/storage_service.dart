@@ -48,6 +48,10 @@ class StorageService {
     return await _storage.read(key: 'reg_name_${email.toLowerCase().trim()}');
   }
 
+  // Dev-only: lets lib/dev/assistant_preview_main.dart reuse a real token (DEV_JWT)
+  Future<void> saveAccessToken(String accessToken) async =>
+      await _storage.write(key: _keyAccessToken, value: accessToken);
+
   Future<String?> getAccessToken() async => await _storage.read(key: _keyAccessToken);
   Future<String?> getRefreshToken() async => await _storage.read(key: _keyRefreshToken);
   Future<String?> getUserId() async => await _storage.read(key: _keyUserId);

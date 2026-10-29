@@ -1,0 +1,15 @@
+{
+  "name": "metanoia-avatar",
+  "private": true,
+  "description": "Source for assets/avatar/avatar.js (three.js + three-vrm bundled into one file). See README.md.",
+  "scripts": {
+    "build": "esbuild main.js --bundle --minify --format=iife --target=es2020 --outfile=../avatar.js"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "3.5.5",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

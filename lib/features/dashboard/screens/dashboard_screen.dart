@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../assistant/screens/assistant_screen.dart';
 import '../data/dashboard_repository.dart';
 import '../models/dashboard_models.dart';
 
@@ -307,6 +308,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton(
+        // MainShellScreen keeps every tab alive (IndexedStack) and Schedule has its own FAB,
+        // so the default hero tag would clash.
+        heroTag: 'assistant-fab',
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.onPrimary,
+        tooltip: 'Trợ lý',
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AssistantScreen()),
+        ),
+        child: const Icon(Icons.record_voice_over),
+      ),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.primary,
