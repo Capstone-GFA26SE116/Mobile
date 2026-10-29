@@ -6,6 +6,10 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Metanoia cần micro để bạn nói chuyện với trợ lý.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Metanoia chuyển giọng nói của bạn thành chữ để trợ lý hiểu câu hỏi.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Metanoia Mobile</string>
 	<key>CFBundleExecutable</key>
