@@ -21,7 +21,7 @@ CHỈ DỪNG khi: (a) cùng 1 lỗi sửa 2 lần vẫn không qua, (b) cần qu
 - [x] D2 — Video demo ~30 giây trên Simulator: hỏi "Hôm nay tôi nên làm gì?" → nhân vật nghĩ → cười → đọc **dữ liệu thật**, miệng nhép.
 - [x] D3 — `model.vrm` < 10 MB, nhìn không khác bản cũ.
 - [x] D4 — `flutter analyze` sạch, `flutter test` xanh, build Android + iOS Simulator đều qua.
-- [ ] D5 — PR `feature/avatar-3d` → `main` sạch: không Team ID / bundle ID riêng của Hiếu, không token, không file rác; mô tả PR đủ để bạn mobile review.
+- [x] D5 — PR `feature/avatar-3d` → `main` sạch: không Team ID / bundle ID riêng của Hiếu, không token, không file rác; mô tả PR đủ để bạn mobile review.
 - [x] D6 — Plan gốc mọi bước tick (trừ phần cần iPhone thật, ghi rõ lý do), trạng thái "Xong".
 
 **Ngoài phạm vi:** Google Sign-In trên iOS (cần OAuth client iOS — việc riêng, ghi ở open questions) · iPhone thật (bị chặn) ·
