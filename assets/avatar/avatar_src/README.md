@@ -29,3 +29,12 @@ JS → Flutter, handler `AvatarBridge`: `{type: 'ready'}` once the model is load
 Flutter → JS (only after `ready`):
 - `avatar.setSpeaking(true|false)` — mouth (`aa`) moves at ~8 Hz while true, closes smoothly when false.
 - `avatar.setEmotion('neutral'|'happy'|'thinking'|'sad')` — fades (~0.25 s) to VRM `neutral` / `happy` / `relaxed` / `sad`.
+
+## Giảm dung lượng model
+
+`shrink_vrm.py` thu mọi texture lớn hơn 1024 px về 1024 px, giữ nguyên mesh, morph và JSON VRM (cần Pillow):
+
+```
+python3 -m venv /tmp/vrm && /tmp/vrm/bin/pip install Pillow
+/tmp/vrm/bin/python shrink_vrm.py ../model.vrm ../model.vrm
+```

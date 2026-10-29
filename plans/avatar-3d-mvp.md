@@ -91,6 +91,7 @@ assets/avatar/
   index.html          — canvas + nạp avatar.js
   avatar.js           — three.js + three-vrm đã đóng gói (build 1 lần, xem bước 2)
   avatar_src/main.js  — mã nguồn trước khi đóng gói (scene, đèn, camera, idle, miệng, biểu cảm)
+  avatar_src/shrink_vrm.py — thu texture > 1024 px của model.vrm (Pillow)
   avatar_src/package.json + README.md — phiên bản three / three-vrm / esbuild cố định, lệnh build
                         (README để trong avatar_src/ cho khỏi bị đóng gói vào app)
   model.vrm           — nhân vật từ VRoid (VRM 1.0)
@@ -186,3 +187,4 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | Hiếu kiểm trên Android emulator (đăng nhập Google thật): nói tiếng Việt → chữ hiện, hỏi "hôm nay" → nhân vật đọc dữ liệu thật, câu khác → câu gợi ý → tick bước 5 và 8. Để emulator nghe được cần: quyền Micro cho emulator trong macOS, gói nhận giọng tiếng Việt trên emulator, AVD `hw.ramSize` 4096 | Còn: bước 2–3 (miệng / biểu cảm chỉ thấy trên máy thật hoặc Chrome), bước 9 (video demo trên máy thật) |
 | 2026-10-29 | Bắt đầu `plans/avatar-3d-complete.md` (bước 1): AC1 / T4 đổi máy thật → iOS Simulator; thêm quyết định C1–C9 | iPhone bị chặn cài app. `avatar-3d-finish.md` không có trong repo nên không cần đánh dấu "Thay bởi" |
 | 2026-10-29 | complete bước 2: `DEV_JWT` / `DEV_UTTERANCE` / `DEV_AVATAR_TOUR` trong `assistant_preview_main.dart` (chỉ `kDebugMode`); `AssistantScreen(devUtterance, devTour)`; tách `AssistantTurn` khỏi màn hình để câu dev đi đúng luồng câu nói thật; thêm `StorageService.saveAccessToken` (chỉ thêm, không đổi hàm cũ). Test `assistant_turn_test.dart` 6/6 | `kDebugMode` luôn `true` trong `flutter test` nên không test được nhánh release — kiểm bằng đọc code: cả 3 option đều bọc `kDebugMode` ở `main()` |
+| 2026-10-29 | complete bước 3: `model.vrm` 11,8 MB → 8,2 MB bằng `shrink_vrm.py` (6 texture 2048 → 1024 px, kể cả ảnh thumbnail). Mesh / accessor / 57 morph / 14 expression / extension VRM giữ nguyên; Chrome headless nạp được, ảnh `happy` so với bản cũ không thấy khác | `~/Desktop/Metanoia Assistant.vrm` trùng bản cũ (chưa xuất lại) nên dùng script. Kiểm bằng Chrome headless thay cho Playwright (máy chưa cài Playwright, cùng mục đích) |
