@@ -66,3 +66,6 @@ GoogleService-Info.plist
 
 # Avatar bundle build deps (assets/avatar/avatar_src)
 node_modules/
+
+# Claude Code local settings
+.claude/
