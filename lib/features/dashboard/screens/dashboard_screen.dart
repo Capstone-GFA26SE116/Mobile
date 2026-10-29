@@ -309,6 +309,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton(
+        // MainShellScreen keeps every tab alive (IndexedStack) and Schedule has its own FAB,
+        // so the default hero tag would clash.
+        heroTag: 'assistant-fab',
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
         tooltip: 'Trợ lý',
