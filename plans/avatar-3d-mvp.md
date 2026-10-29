@@ -91,6 +91,7 @@ lib/features/assistant/
   models/briefing.dart               — phần JSON briefing cần đọc (bước 6 cần trước bước 7)
   logic/intent_router.dart           — luật từ khóa (#4)
   logic/briefing_speech.dart         — ghép câu đọc từ JSON briefing
+  logic/assistant_voice.dart         — bọc flutter_tts (vi-VN), báo đang đọc / dừng cho miệng avatar
   widgets/avatar_view.dart           — InAppWebView + cầu nối JS
   screens/assistant_screen.dart      — màn hình: avatar, chữ nhận dạng, nút micro
 lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
@@ -144,7 +145,7 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 - [ ] **2.** Đóng gói three.js + three-vrm thành `assets/avatar/avatar.js` (dùng `esbuild` qua `npx`, ghi lệnh build vào `assets/avatar/avatar_src/README.md`);
   nạp `model.vrm` (Hiếu đưa file), camera ngang ngực, đèn, chớp mắt + thở. Gửi `ready` / `error` về Flutter — test: T4.
 - [ ] **3.** `avatar_view.dart` + API JS `setSpeaking` / `setEmotion` — thêm 2 nút thử tạm trên màn hình để bật/tắt miệng, đổi biểu cảm.
-- [ ] **4.** TTS: `flutter_tts` đọc 1 câu cố định, nối `onStart` / `onComplete` với `setSpeaking` — test: T6 (phần dừng đọc).
+- [x] **4.** TTS: `flutter_tts` đọc 1 câu cố định, nối `onStart` / `onComplete` với `setSpeaking` — test: T6 (phần dừng đọc).
 - [ ] **5.** STT: `speech_to_text` + quyền Android / iOS, nút bấm giữ micro, hiện chữ — test: T7 (phần quyền).
 - [x] **6.** `intent_router` + `briefing_speech` (logic thuần, chưa gọi API) — test: T1, T2.
 - [x] **7.** `AssistantRepository` (nhận `Dio?` qua constructor) + `ApiEndpoints.aiBriefingToday` — test: T3 (adapter giả, #9).
@@ -166,3 +167,5 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | Bước 6: `intent_router.dart` (bỏ dấu cả dạng dựng sẵn lẫn tổ hợp NFD, so nguyên từ), `briefing_speech.dart`, thêm `models/briefing.dart`. Quá 60 từ → bỏ lý do trước, rồi chỉ giữ 1 việc. Deadline nguy hiểm đọc tối đa 2 tên. Test T1 (7) + T2 (8) xanh | Model cần cho logic bước 6 nên tách file riêng thay vì đặt trong repository bước 7 |
 | 2026-10-29 | Bước 7: `AssistantRepository.getTodayBriefing()` gọi `GET /briefing/today?language=vi` với `Bearer <JWT>`; lỗi ném `AssistantException` (`unauthorized` / `network` / `server`) kèm câu đọc cho user, không có dữ liệu giả. Thêm `ApiEndpoints.aiBriefingToday`. Test T3 (6, adapter giả) xanh | Body sai định dạng cũng coi là lỗi `server` thay vì đoán dữ liệu |
 | 2026-10-29 | Kiểm bước 2–3 trên Chrome Mac (cùng `avatar.js` + `model.vrm`): 4 biểu cảm hiện, miệng nhép. `thinking` (`relaxed`) gần giống `neutral` → thêm nghiêng đầu nhẹ khi `thinking`, mờ dần cùng biểu cảm | Hiếu cần phân biệt được lúc nhân vật đang chờ API. Vẫn chờ iPhone simulator (chưa có Xcode) mới tick bước 2–3 |
+| 2026-10-29 | Kiểm iPhone thật (iPhone 16e, iOS 26.6.1): build + ký app được, nhưng **iPhone từ chối cài** (`Installation on this device is prohibited by ManagedConfiguration`, do Screen Time / hồ sơ quản lý). Hiếu tạm chưa gỡ được → bước 2–3 vẫn chưa tick, làm tiếp các bước khác trên Android emulator | Ghi chú build iOS: project nằm trong `Desktop` đồng bộ iCloud → iCloud gắn `com.apple.FinderInfo` vào `build/`, bước ký `Flutter.framework` báo `resource fork, Finder information, or similar detritus not allowed`. Cách tạm trên máy Hiếu: `build` là symlink tới `~/dev-build/metanoia-mobile` (thêm `/build` vào `.git/info/exclude`, không commit). File iOS do Xcode sinh (Team ID trong `project.pbxproj`, `Podfile`…) **không** commit |
+| 2026-10-29 | Bước 4: `flutter_tts ^4.2.5`, `AssistantVoice` (kiểm có giọng `vi-VN`, tốc độ 0.5, iOS đọc cả khi gạt im lặng); `onStart` → `setSpeaking(true)`, `onComplete` / `onCancel` / `onError` / `stop()` → `false`. Manifest thêm `<queries>` `TTS_SERVICE`. Nút tạm "Đọc thử / Dừng đọc". Emulator: đọc đủ câu (~6 s), bấm dừng giữa chừng → dừng ngay (T6 phần dừng đọc); emulator tự tải giọng Việt lần đầu | Sửa lỗi bấm lần 2 trước khi engine kịp bắt đầu → đọc lại thay vì dừng (thêm `isBusy` + đếm lượt để `stop()` huỷ cả `speak()` đang chuẩn bị). `flutter_tts` bị cảnh báo dùng Kotlin Gradle Plugin (Flutter bản sau sẽ báo lỗi) — theo dõi bản mới. Chưa kiểm trên iOS |
