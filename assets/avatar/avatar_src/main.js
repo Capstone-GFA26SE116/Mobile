@@ -149,14 +149,19 @@ function updateBlink(t) {
   vrm.expressionManager?.setValue('blink', value);
 }
 
+// 0 → 1 while the avatar is "thinking", so the head tilt fades in and out with the expression.
+let thinkingWeight = 0;
+
 function updateBreathing(t) {
   const breath = Math.sin(t * Math.PI * 2 / 4); // one breath every ~4 s
   if (bones.spine) bones.spine.rotation.x = breath * 0.015;
   if (bones.chest) bones.chest.rotation.x = breath * 0.02;
   if (bones.neck) bones.neck.rotation.x = -breath * 0.01;
   if (bones.head) {
-    bones.head.rotation.y = Math.sin(t * 0.5) * 0.04;
-    bones.head.rotation.z = Math.sin(t * 0.37) * 0.02;
+    // Thinking: tilt the head to one side and look slightly up.
+    bones.head.rotation.x = -thinkingWeight * 0.08;
+    bones.head.rotation.y = Math.sin(t * 0.5) * 0.04 + thinkingWeight * 0.1;
+    bones.head.rotation.z = Math.sin(t * 0.37) * 0.02 + thinkingWeight * 0.15;
   }
 }
 
@@ -171,6 +176,7 @@ const MOUTH_FADE_PER_SEC = 12;  // how fast the mouth closes after speaking stop
 
 let speaking = false;
 let targetEmotion = 'neutral';
+let targetName = 'neutral'; // app emotion name; 'thinking' also tilts the head
 const emotionWeights = Object.fromEntries(EMOTION_PRESETS.map((p) => [p, p === 'neutral' ? 1 : 0]));
 let mouth = 0;
 let mouthCycle = -1;
@@ -182,6 +188,7 @@ function approach(current, target, maxStep) {
 
 function updateEmotion(delta) {
   const step = EMOTION_FADE_PER_SEC * delta;
+  thinkingWeight = approach(thinkingWeight, targetName === 'thinking' ? 1 : 0, step);
   for (const preset of EMOTION_PRESETS) {
     emotionWeights[preset] = approach(emotionWeights[preset], preset === targetEmotion ? 1 : 0, step);
     vrm.expressionManager?.setValue(preset, emotionWeights[preset]);
@@ -214,6 +221,7 @@ window.avatar = {
       return;
     }
     targetEmotion = preset;
+    targetName = name;
   },
 };
 
