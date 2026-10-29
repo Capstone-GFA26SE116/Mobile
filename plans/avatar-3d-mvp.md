@@ -162,7 +162,7 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 - [x] **6.** `intent_router` + `briefing_speech` (logic thuần, chưa gọi API) — test: T1, T2.
 - [x] **7.** `AssistantRepository` (nhận `Dio?` qua constructor) + `ApiEndpoints.aiBriefingToday` — test: T3 (adapter giả, #9).
 - [x] **8.** Ghép toàn luồng trong `AssistantScreen`, xóa 2 nút thử ở bước 3 — test: T5, T6, T7.
-- [ ] **9.** `flutter analyze` + `flutter test` (T8); quay video demo 30 giây; ghi kết quả vào mục 5.
+- [x] **9.** `flutter analyze` + `flutter test` (T8); quay video demo 30 giây; ghi kết quả vào mục 5.
 
 ## 5. Nhật ký thay đổi
 | Ngày | Thay đổi | Lý do |
@@ -194,3 +194,4 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | complete bước 7: tick bước 2, 3 và AC1 (Android emulator: hiện + thở; iOS Simulator: đủ chớp mắt / thở / 4 biểu cảm / miệng). Nạp: ~2,3 s từ lúc app hiện tới `ready` (gồm khởi động WebView + model 8,2 MB) | fps: không có overlay fps; JS giới hạn 30 fps, ảnh chụp liên tục không thấy giật. Chưa đo số fps thật |
 | 2026-10-29 | complete bước 8–9: token lấy từ Android emulator bằng `debugPrint` tạm trong `auth_gate.dart` (hoàn tác ngay, không commit; lần đầu token đã hết hạn → Hiếu đăng nhập lại). Simulator với `DEV_JWT` + `DEV_UTTERANCE`: `[assistant] happy: Hôm nay bạn có 0 việc trên lịch. Nên làm trước: [TEST] Làm trang landing page cho shop mỹ phẩm, vì đã quá hạn 7 ngày.` → `[tts] speaking: true` → `false` — dữ liệu thật, có giọng Việt. Thêm log `[assistant]` (câu trả lời) và `[tts] speaking` | Không log request Dio: câu trả lời chỉ có được khi `/briefing/today` trả 200 (lỗi sẽ ra câu báo lỗi + `sad`). Việc quá hạn không nằm trong `at_risk` (FR-12) nên vẫn `happy` — đúng luật plan |
 | 2026-10-29 | complete bước 10: `docs/avatar/demo.mp4` 28,5 s (h264, `--display=1`, 27 MB, không commit — đã thêm `.gitignore`). Khung 12 s: nhân vật nghĩ + "Đang xem lịch hôm nay…"; 16–24 s: cười, hiện câu trả lời dữ liệu thật, miệng nhép | ~8 s đầu là màn khởi động app (quay từ lúc mở app để thấy đủ luồng) |
+| 2026-10-29 | complete bước 11: `flutter analyze` sạch, `flutter test` 28/28, `flutter build apk --debug` qua, `flutter build ios --simulator --debug` qua → tick bước 9 (video ở bước 10) | Build iOS lần đầu lỗi `No space left on device` (ổ còn 281 MB): xoá `DerivedData/Runner-*`, build Android cũ trong `~/dev-build`, file tạm → còn ~1,9 GB. Máy Hiếu gần đầy ổ |
