@@ -69,3 +69,6 @@ node_modules/
 
 # Claude Code local settings
 .claude/
+
+# Avatar demo video (attach to the PR / report instead of committing)
+docs/avatar/demo.mp4
