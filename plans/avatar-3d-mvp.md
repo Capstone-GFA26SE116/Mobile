@@ -147,7 +147,7 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 - [ ] **4.** TTS: `flutter_tts` đọc 1 câu cố định, nối `onStart` / `onComplete` với `setSpeaking` — test: T6 (phần dừng đọc).
 - [ ] **5.** STT: `speech_to_text` + quyền Android / iOS, nút bấm giữ micro, hiện chữ — test: T7 (phần quyền).
 - [x] **6.** `intent_router` + `briefing_speech` (logic thuần, chưa gọi API) — test: T1, T2.
-- [ ] **7.** `AssistantRepository` (nhận `Dio?` qua constructor) + `ApiEndpoints.aiBriefingToday` — test: T3 (adapter giả, #9).
+- [x] **7.** `AssistantRepository` (nhận `Dio?` qua constructor) + `ApiEndpoints.aiBriefingToday` — test: T3 (adapter giả, #9).
 - [ ] **8.** Ghép toàn luồng trong `AssistantScreen`, xóa 2 nút thử ở bước 3 — test: T5, T6, T7.
 - [ ] **9.** `flutter analyze` + `flutter test` (T8); quay video demo 30 giây; ghi kết quả vào mục 5.
 
@@ -164,3 +164,4 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | Ghi nhận bước 2–3 trên emulator: log có `GL error 0x501 [width > max_3d_texture_size]` | three.js lưu morph target thành texture 3D rộng hơn giới hạn GPU giả lập → miệng / biểu cảm không hiện. Không phải lỗi code. Hiếu chỉ có iPhone (không có Android thật) → kiểm bước 2–3 trên iPhone simulator rồi iPhone thật khi cài xong Xcode; bước 2–3 chưa tick |
 | 2026-10-29 | Sửa lỗi branch gây ra (AC7): "multiple heroes share the same tag" → FAB Trợ lý thêm `heroTag: 'assistant-fab'` | `MainShellScreen` giữ mọi tab trong `IndexedStack`, Schedule đã có FAB; 2 FAB trùng hero tag mặc định |
 | 2026-10-29 | Bước 6: `intent_router.dart` (bỏ dấu cả dạng dựng sẵn lẫn tổ hợp NFD, so nguyên từ), `briefing_speech.dart`, thêm `models/briefing.dart`. Quá 60 từ → bỏ lý do trước, rồi chỉ giữ 1 việc. Deadline nguy hiểm đọc tối đa 2 tên. Test T1 (7) + T2 (8) xanh | Model cần cho logic bước 6 nên tách file riêng thay vì đặt trong repository bước 7 |
+| 2026-10-29 | Bước 7: `AssistantRepository.getTodayBriefing()` gọi `GET /briefing/today?language=vi` với `Bearer <JWT>`; lỗi ném `AssistantException` (`unauthorized` / `network` / `server`) kèm câu đọc cho user, không có dữ liệu giả. Thêm `ApiEndpoints.aiBriefingToday`. Test T3 (6, adapter giả) xanh | Body sai định dạng cũng coi là lỗi `server` thay vì đoán dữ liệu |
