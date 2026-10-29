@@ -1,6 +1,6 @@
 # MVP — Trợ lý 3D nói chuyện bằng giọng (Mobile)
 
-Trạng thái: Nháp · Branch: `feature/avatar-3d` · Cập nhật: 2026-10-29
+Trạng thái: Xong (MVP; iPhone thật chưa kiểm — hồ sơ quản lý chặn cài app; mic thật đã kiểm trên Android) · Branch: `feature/avatar-3d` · Cập nhật: 2026-10-29
 
 <!-- Thiết kế trên Claude web (2026-10-28). Hiếu duyệt rồi mới đưa Claude Code.
 Claude Code chỉ được tick checkbox ở mục 0 và 4, và DỪNG sau mỗi bước.
@@ -15,12 +15,12 @@ Claude Code chỉ được tick checkbox ở mục 0 và 4, và DỪNG sau mỗi
   **mà chưa cần AI service làm thêm gì**. Lệnh thứ 2 trở đi sẽ do agent `/assistant/turn` của AI service xử lý (plan riêng, giai đoạn B).
 - **Tiêu chí xong:**
   - [x] AC1 — Nhân vật VRM hiện trong app (Android emulator + iOS Simulator — thay cho máy thật vì iPhone bị hồ sơ quản lý chặn cài app), có chớp mắt và thở nhẹ khi chờ; không giật, không màn trắng.
-  - [ ] AC2 — Bấm giữ micro → thấy chữ nhận dạng hiện dần (tiếng Việt); thả tay → gửi.
-  - [ ] AC3 — Câu có ý "hôm nay / làm gì / ưu tiên / việc gì" → gọi `/briefing/today` → nhân vật đọc: số việc trên lịch hôm nay + tối đa 3 việc nên làm trước kèm lý do + deadline nguy hiểm (nếu có).
-  - [ ] AC4 — Câu khác → nhân vật nói câu gợi ý "Bạn thử hỏi: Hôm nay tôi nên làm gì?". Không gọi API.
-  - [ ] AC5 — Miệng nhép khi đang đọc, dừng khi đọc xong; bấm micro trong lúc đang đọc → dừng đọc ngay.
-  - [ ] AC6 — Lỗi (không có mạng, AI 401/5xx, user từ chối quyền micro) → nhân vật nói câu báo lỗi ngắn + hiện chữ; **không** bịa dữ liệu giả.
-  - [ ] AC7 — Không sửa hành vi các màn hình cũ; `flutter analyze` sạch.
+  - [x] AC2 — Bấm giữ micro → thấy chữ nhận dạng hiện dần (tiếng Việt); thả tay → gửi.
+  - [x] AC3 — Câu có ý "hôm nay / làm gì / ưu tiên / việc gì" → gọi `/briefing/today` → nhân vật đọc: số việc trên lịch hôm nay + tối đa 3 việc nên làm trước kèm lý do + deadline nguy hiểm (nếu có).
+  - [x] AC4 — Câu khác → nhân vật nói câu gợi ý "Bạn thử hỏi: Hôm nay tôi nên làm gì?". Không gọi API.
+  - [x] AC5 — Miệng nhép khi đang đọc, dừng khi đọc xong; bấm micro trong lúc đang đọc → dừng đọc ngay.
+  - [x] AC6 — Lỗi (không có mạng, AI 401/5xx, user từ chối quyền micro) → nhân vật nói câu báo lỗi ngắn + hiện chữ; **không** bịa dữ liệu giả.
+  - [x] AC7 — Không sửa hành vi các màn hình cũ; `flutter analyze` sạch.
 - **Ngoài phạm vi:** agent hiểu nhiều lệnh (giai đoạn B) · thao tác ghi (start timer, tạo task) · nhép miệng khớp từng âm ·
   animation Mixamo · iOS máy thật (chỉ cần build được simulator) · lưu lịch sử hội thoại.
 
@@ -195,3 +195,4 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | complete bước 8–9: token lấy từ Android emulator bằng `debugPrint` tạm trong `auth_gate.dart` (hoàn tác ngay, không commit; lần đầu token đã hết hạn → Hiếu đăng nhập lại). Simulator với `DEV_JWT` + `DEV_UTTERANCE`: `[assistant] happy: Hôm nay bạn có 0 việc trên lịch. Nên làm trước: [TEST] Làm trang landing page cho shop mỹ phẩm, vì đã quá hạn 7 ngày.` → `[tts] speaking: true` → `false` — dữ liệu thật, có giọng Việt. Thêm log `[assistant]` (câu trả lời) và `[tts] speaking` | Không log request Dio: câu trả lời chỉ có được khi `/briefing/today` trả 200 (lỗi sẽ ra câu báo lỗi + `sad`). Việc quá hạn không nằm trong `at_risk` (FR-12) nên vẫn `happy` — đúng luật plan |
 | 2026-10-29 | complete bước 10: `docs/avatar/demo.mp4` 28,5 s (h264, `--display=1`, 27 MB, không commit — đã thêm `.gitignore`). Khung 12 s: nhân vật nghĩ + "Đang xem lịch hôm nay…"; 16–24 s: cười, hiện câu trả lời dữ liệu thật, miệng nhép | ~8 s đầu là màn khởi động app (quay từ lúc mở app để thấy đủ luồng) |
 | 2026-10-29 | complete bước 11: `flutter analyze` sạch, `flutter test` 28/28, `flutter build apk --debug` qua, `flutter build ios --simulator --debug` qua → tick bước 9 (video ở bước 10) | Build iOS lần đầu lỗi `No space left on device` (ổ còn 281 MB): xoá `DerivedData/Runner-*`, build Android cũ trong `~/dev-build`, file tạm → còn ~1,9 GB. Máy Hiếu gần đầy ổ |
+| 2026-10-29 | complete bước 12: plan → Xong. AC2–AC4 Hiếu kiểm trên Android (giọng thật, dữ liệu thật); AC5 miệng trên Simulator + dừng đọc trên emulator; AC6 từ chối micro (emulator) + 401 / 5xx / timeout bằng unit test (chưa thử tắt mạng bằng tay); AC7 analyze sạch, FAB có `heroTag`. Commit file plugin macOS / Windows (C7). Quét repo + lịch sử: không có JWT, không có Team ID | Tắt mạng bằng tay để kiểm AC6 nên làm khi diễn tập demo |

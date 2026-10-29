@@ -17,12 +17,12 @@ CHỈ DỪNG khi: (a) cùng 1 lỗi sửa 2 lần vẫn không qua, (b) cần qu
 (`ManagedConfiguration`) → **iOS Simulator là nơi duyệt chính**.
 
 **Đích đến (định nghĩa "xong"):**
-- [ ] D1 — Trên iOS Simulator: nhân vật hiện, chớp mắt, thở, 4 biểu cảm, miệng nhép khi đọc — có **ảnh chụp làm bằng chứng** trong repo.
-- [ ] D2 — Video demo ~30 giây trên Simulator: hỏi "Hôm nay tôi nên làm gì?" → nhân vật nghĩ → cười → đọc **dữ liệu thật**, miệng nhép.
-- [ ] D3 — `model.vrm` < 10 MB, nhìn không khác bản cũ.
-- [ ] D4 — `flutter analyze` sạch, `flutter test` xanh, build Android + iOS Simulator đều qua.
+- [x] D1 — Trên iOS Simulator: nhân vật hiện, chớp mắt, thở, 4 biểu cảm, miệng nhép khi đọc — có **ảnh chụp làm bằng chứng** trong repo.
+- [x] D2 — Video demo ~30 giây trên Simulator: hỏi "Hôm nay tôi nên làm gì?" → nhân vật nghĩ → cười → đọc **dữ liệu thật**, miệng nhép.
+- [x] D3 — `model.vrm` < 10 MB, nhìn không khác bản cũ.
+- [x] D4 — `flutter analyze` sạch, `flutter test` xanh, build Android + iOS Simulator đều qua.
 - [ ] D5 — PR `feature/avatar-3d` → `main` sạch: không Team ID / bundle ID riêng của Hiếu, không token, không file rác; mô tả PR đủ để bạn mobile review.
-- [ ] D6 — Plan gốc mọi bước tick (trừ phần cần iPhone thật, ghi rõ lý do), trạng thái "Xong".
+- [x] D6 — Plan gốc mọi bước tick (trừ phần cần iPhone thật, ghi rõ lý do), trạng thái "Xong".
 
 **Ngoài phạm vi:** Google Sign-In trên iOS (cần OAuth client iOS — việc riêng, ghi ở open questions) · iPhone thật (bị chặn) ·
 agent nhiều lệnh (giai đoạn B: `avatar-3d-agent.md` + `FR-22.md` repo AI) · đổi `flutter_inappwebview` sang bản ổn định.
@@ -54,18 +54,18 @@ agent nhiều lệnh (giai đoạn B: `avatar-3d-agent.md` + `FR-22.md` repo AI)
 
 ## 3. Các bước (Claude Code chạy liền)
 
-- [ ] **1. Dọn plan.** `avatar-3d-finish.md` thêm dòng "Thay bởi `avatar-3d-complete.md`". Plan gốc: AC1 → "iOS Simulator (thay cho máy thật — iPhone bị hồ sơ quản lý chặn cài app)"; T4 → "iOS Simulator"; thêm #1–#9 vào bảng quyết định.
-- [ ] **2. Hook debug (#1, #3, #4).** `assistant_preview_main.dart` + `AssistantScreen` nhận `devUtterance` / `devTour` qua constructor (màn chính không truyền → hành vi cũ). Unit/widget test: không có define → không làm gì thêm; `devUtterance` → gọi đúng luồng như câu nói thật. Kiểm `kDebugMode` bằng test hoặc ghi rõ trong nhật ký.
-- [ ] **3. Giảm VRM (#6).** Có `~/Desktop/Metanoia Assistant.vrm` mới hơn file trong repo → dùng file đó. Không có → chạy `shrink_vrm.py`. Mục tiêu < 10 MB. Kiểm nạp được bằng Playwright Chrome headless (`index.html` qua server tĩnh tạm, chờ `ready`, chụp ảnh).
-- [ ] **4. iOS build.** `flutter pub get` → `cd ios && pod install` (đặt `platform :ios, '15.0'` nếu cần) → `flutter build ios --simulator --debug`. Lỗi build → sửa theo log.
-- [ ] **5. Chạy Simulator.** Boot 1 iPhone (`xcrun simctl boot "<iPhone mới nhất có sẵn>"`, `open -a Simulator`). `flutter run -d <id> -t lib/dev/assistant_preview_main.dart --dart-define=DEV_AVATAR_TOUR=true`. Chờ `ready` (tối đa 60 s, đọc log).
-- [ ] **6. Tự duyệt hình (#4).** Chụp 6 ảnh: chờ (mắt mở), chớp mắt (chụp liên tục 10 ảnh trong 6 s, giữ 1 ảnh mắt nhắm), `happy`, `thinking` (đầu nghiêng), `sad`, đang nói (miệng mở). Xem từng ảnh: đúng → lưu vào `docs/avatar/screenshots/`. Sai → tìm nguyên nhân (log WebView, thử Chrome headless cùng model) và sửa; vẫn sai sau 2 lần → DỪNG báo Hiếu kèm ảnh.
-- [ ] **7. Tick bước 2–3** plan gốc + AC1 (Simulator). Ghi fps (đọc từ overlay/log) và thời gian nạp model.
-- [ ] **8. Lấy token (#2)** từ Android emulator đang đăng nhập. Không lấy được / emulator không chạy → DỪNG, nhờ Hiếu đăng nhập lại.
-- [ ] **9. Chạy luồng thật trên Simulator:** `--dart-define=DEV_JWT=<token> --dart-define=DEV_UTTERANCE="Hôm nay tôi nên làm gì?"`. Log phải thấy `GET /briefing/today` 200, TTS bắt đầu, `setSpeaking(true)` rồi `false`. Không có giọng Việt → DỪNG nhắc Hiếu mục 1.2.
-- [ ] **10. Quay video (D2).** `xcrun simctl io booted recordVideo --codec h264 docs/avatar/demo.mp4` → chạy lại bước 9 từ đầu → dừng quay sau khi đọc xong + 2 s. Video 20–40 s. Thêm `docs/avatar/demo.mp4` vào `.gitignore`.
-- [ ] **11. Kiểm toàn bộ (D4).** `flutter analyze`, `flutter test`, `flutter build apk --debug`, `flutter build ios --simulator --debug` — tất cả qua. Tick bước 9 plan gốc.
-- [ ] **12. Dọn & PR (D5, #7, #8).**
+- [x] **1. Dọn plan.** `avatar-3d-finish.md` thêm dòng "Thay bởi `avatar-3d-complete.md`". Plan gốc: AC1 → "iOS Simulator (thay cho máy thật — iPhone bị hồ sơ quản lý chặn cài app)"; T4 → "iOS Simulator"; thêm #1–#9 vào bảng quyết định.
+- [x] **2. Hook debug (#1, #3, #4).** `assistant_preview_main.dart` + `AssistantScreen` nhận `devUtterance` / `devTour` qua constructor (màn chính không truyền → hành vi cũ). Unit/widget test: không có define → không làm gì thêm; `devUtterance` → gọi đúng luồng như câu nói thật. Kiểm `kDebugMode` bằng test hoặc ghi rõ trong nhật ký.
+- [x] **3. Giảm VRM (#6).** Có `~/Desktop/Metanoia Assistant.vrm` mới hơn file trong repo → dùng file đó. Không có → chạy `shrink_vrm.py`. Mục tiêu < 10 MB. Kiểm nạp được bằng Playwright Chrome headless (`index.html` qua server tĩnh tạm, chờ `ready`, chụp ảnh).
+- [x] **4. iOS build.** `flutter pub get` → `cd ios && pod install` (đặt `platform :ios, '15.0'` nếu cần) → `flutter build ios --simulator --debug`. Lỗi build → sửa theo log.
+- [x] **5. Chạy Simulator.** Boot 1 iPhone (`xcrun simctl boot "<iPhone mới nhất có sẵn>"`, `open -a Simulator`). `flutter run -d <id> -t lib/dev/assistant_preview_main.dart --dart-define=DEV_AVATAR_TOUR=true`. Chờ `ready` (tối đa 60 s, đọc log).
+- [x] **6. Tự duyệt hình (#4).** Chụp 6 ảnh: chờ (mắt mở), chớp mắt (chụp liên tục 10 ảnh trong 6 s, giữ 1 ảnh mắt nhắm), `happy`, `thinking` (đầu nghiêng), `sad`, đang nói (miệng mở). Xem từng ảnh: đúng → lưu vào `docs/avatar/screenshots/`. Sai → tìm nguyên nhân (log WebView, thử Chrome headless cùng model) và sửa; vẫn sai sau 2 lần → DỪNG báo Hiếu kèm ảnh.
+- [x] **7. Tick bước 2–3** plan gốc + AC1 (Simulator). Ghi fps (đọc từ overlay/log) và thời gian nạp model.
+- [x] **8. Lấy token (#2)** từ Android emulator đang đăng nhập. Không lấy được / emulator không chạy → DỪNG, nhờ Hiếu đăng nhập lại.
+- [x] **9. Chạy luồng thật trên Simulator:** `--dart-define=DEV_JWT=<token> --dart-define=DEV_UTTERANCE="Hôm nay tôi nên làm gì?"`. Log phải thấy `GET /briefing/today` 200, TTS bắt đầu, `setSpeaking(true)` rồi `false`. Không có giọng Việt → DỪNG nhắc Hiếu mục 1.2.
+- [x] **10. Quay video (D2).** `xcrun simctl io booted recordVideo --codec h264 docs/avatar/demo.mp4` → chạy lại bước 9 từ đầu → dừng quay sau khi đọc xong + 2 s. Video 20–40 s. Thêm `docs/avatar/demo.mp4` vào `.gitignore`.
+- [x] **11. Kiểm toàn bộ (D4).** `flutter analyze`, `flutter test`, `flutter build apk --debug`, `flutter build ios --simulator --debug` — tất cả qua. Tick bước 9 plan gốc.
+- [x] **12. Dọn & PR (D5, #7, #8).**
   - `git status` sạch rác; không còn `debugPrint` token; grep repo không có chuỗi `eyJ` (JWT) hay Team ID.
   - `project.pbxproj` theo #8 (`git diff` kiểm lại).
   - Plan gốc → "Xong" (ghi rõ: iPhone thật chưa kiểm do hồ sơ quản lý; mic thật đã kiểm trên Android).
