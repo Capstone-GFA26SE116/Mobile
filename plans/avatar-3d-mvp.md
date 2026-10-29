@@ -1,6 +1,6 @@
 # MVP — Trợ lý 3D nói chuyện bằng giọng (Mobile)
 
-Trạng thái: Nháp · Branch: `feature/avatar-3d` · Cập nhật: 2026-10-28
+Trạng thái: Nháp · Branch: `feature/avatar-3d` · Cập nhật: 2026-10-29
 
 <!-- Thiết kế trên Claude web (2026-10-28). Hiếu duyệt rồi mới đưa Claude Code.
 Claude Code chỉ được tick checkbox ở mục 0 và 4, và DỪNG sau mỗi bước.
@@ -88,6 +88,7 @@ assets/avatar/
 lib/dev/assistant_preview_main.dart — chạy thẳng màn trợ lý, bỏ qua đăng nhập (chỉ dùng khi dev)
 lib/features/assistant/
   data/assistant_repository.dart     — gọi /briefing/today
+  models/briefing.dart               — phần JSON briefing cần đọc (bước 6 cần trước bước 7)
   logic/intent_router.dart           — luật từ khóa (#4)
   logic/briefing_speech.dart         — ghép câu đọc từ JSON briefing
   widgets/avatar_view.dart           — InAppWebView + cầu nối JS
@@ -145,7 +146,7 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 - [ ] **3.** `avatar_view.dart` + API JS `setSpeaking` / `setEmotion` — thêm 2 nút thử tạm trên màn hình để bật/tắt miệng, đổi biểu cảm.
 - [ ] **4.** TTS: `flutter_tts` đọc 1 câu cố định, nối `onStart` / `onComplete` với `setSpeaking` — test: T6 (phần dừng đọc).
 - [ ] **5.** STT: `speech_to_text` + quyền Android / iOS, nút bấm giữ micro, hiện chữ — test: T7 (phần quyền).
-- [ ] **6.** `intent_router` + `briefing_speech` (logic thuần, chưa gọi API) — test: T1, T2.
+- [x] **6.** `intent_router` + `briefing_speech` (logic thuần, chưa gọi API) — test: T1, T2.
 - [ ] **7.** `AssistantRepository` (nhận `Dio?` qua constructor) + `ApiEndpoints.aiBriefingToday` — test: T3 (adapter giả, #9).
 - [ ] **8.** Ghép toàn luồng trong `AssistantScreen`, xóa 2 nút thử ở bước 3 — test: T5, T6, T7.
 - [ ] **9.** `flutter analyze` + `flutter test` (T8); quay video demo 30 giây; ghi kết quả vào mục 5.
@@ -160,3 +161,6 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-28 | Bước 2 (chờ Hiếu duyệt): three 0.186.1 + three-vrm 3.5.5 → `avatar.js` 747 KB; camera đặt đầu ở 1/3 trên, hạ tay khỏi T-pose, chớp mắt 2–6 s, thở 4 s/lần, 30 fps, dừng vẽ khi trang ẩn; gửi `ready` / `error` về Flutter. Chạy được trên emulator | `model.vrm` 11,8 MB (> 10 MB mục tiêu) — giảm texture trong VRoid khi rảnh. Emulator có 1 cảnh báo `GL_INVALID_VALUE glBufferData` lúc nạp, không ảnh hưởng hiển thị; kiểm lại trên máy thật |
 | 2026-10-28 | Bước 3 (chờ Hiếu duyệt): `AvatarView` + `AvatarController` (`setSpeaking` / `setEmotion`, bỏ qua lệnh trước `ready`), JS `window.avatar`, 2 nút thử tạm. Lệnh tới JS đúng, three.js đặt đúng giá trị morph; **emulator Pixel 8 (arm64, `hw.gpu.mode=auto`) không vẽ morph** (miệng, biểu cảm, chớp mắt đều không hiện; kèm cảnh báo `GL_INVALID_VALUE glBufferData`). Cùng trang trên Chrome Mac hiện đúng `sad` + miệng mở | Giới hạn GPU giả lập, không phải lỗi code. Kiểm biểu cảm / miệng / chớp mắt trên **máy thật** (AC1 cũng yêu cầu máy thật) |
 | 2026-10-28 | Ghi chú: `test/widget_test.dart` đã lỗi sẵn trước plan này (`DotEnv has not been initialized`, từ commit `a91a0cd`) | Cần sửa trước bước 9 (T8 yêu cầu `flutter test` xanh) |
+| 2026-10-29 | Ghi nhận bước 2–3 trên emulator: log có `GL error 0x501 [width > max_3d_texture_size]` | three.js lưu morph target thành texture 3D rộng hơn giới hạn GPU giả lập → miệng / biểu cảm không hiện. Không phải lỗi code. Hiếu chỉ có iPhone (không có Android thật) → kiểm bước 2–3 trên iPhone simulator rồi iPhone thật khi cài xong Xcode; bước 2–3 chưa tick |
+| 2026-10-29 | Sửa lỗi branch gây ra (AC7): "multiple heroes share the same tag" → FAB Trợ lý thêm `heroTag: 'assistant-fab'` | `MainShellScreen` giữ mọi tab trong `IndexedStack`, Schedule đã có FAB; 2 FAB trùng hero tag mặc định |
+| 2026-10-29 | Bước 6: `intent_router.dart` (bỏ dấu cả dạng dựng sẵn lẫn tổ hợp NFD, so nguyên từ), `briefing_speech.dart`, thêm `models/briefing.dart`. Quá 60 từ → bỏ lý do trước, rồi chỉ giữ 1 việc. Deadline nguy hiểm đọc tối đa 2 tên. Test T1 (7) + T2 (8) xanh | Model cần cho logic bước 6 nên tách file riêng thay vì đặt trong repository bước 7 |
