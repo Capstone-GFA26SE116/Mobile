@@ -14,7 +14,7 @@ Claude Code chỉ được tick checkbox ở mục 0 và 4, và DỪNG sau mỗi
 - **Vì sao MVP chỉ 1 lệnh:** chứng minh cả đường ống (micro → chữ → API → giọng đọc → 3D) chạy được trên máy thật
   **mà chưa cần AI service làm thêm gì**. Lệnh thứ 2 trở đi sẽ do agent `/assistant/turn` của AI service xử lý (plan riêng, giai đoạn B).
 - **Tiêu chí xong:**
-  - [ ] AC1 — Nhân vật VRM hiện trong app (Android emulator + 1 máy thật), có chớp mắt và thở nhẹ khi chờ; không giật, không màn trắng.
+  - [ ] AC1 — Nhân vật VRM hiện trong app (Android emulator + iOS Simulator — thay cho máy thật vì iPhone bị hồ sơ quản lý chặn cài app), có chớp mắt và thở nhẹ khi chờ; không giật, không màn trắng.
   - [ ] AC2 — Bấm giữ micro → thấy chữ nhận dạng hiện dần (tiếng Việt); thả tay → gửi.
   - [ ] AC3 — Câu có ý "hôm nay / làm gì / ưu tiên / việc gì" → gọi `/briefing/today` → nhân vật đọc: số việc trên lịch hôm nay + tối đa 3 việc nên làm trước kèm lý do + deadline nguy hiểm (nếu có).
   - [ ] AC4 — Câu khác → nhân vật nói câu gợi ý "Bạn thử hỏi: Hôm nay tôi nên làm gì?". Không gọi API.
@@ -73,6 +73,15 @@ Không đọc mã nội bộ (`code`, `missing_minutes`…).
 | 7 | Lỗi API | Báo lỗi thật, **không** dùng dữ liệu giả như fallback trong `CopilotRepository` | Demo trước hội đồng phải là dữ liệu thật |
 | 8 | Token hết hạn (~60', app chưa tự refresh) | **Không** sửa trong plan này; trước demo đăng nhập lại. Tự refresh token làm plan riêng cho cả app | Sửa `ApiClient` dùng chung sẽ đụng mọi màn hình (AC7) |
 | 9 | Test repository không có server thật | Tự viết `HttpClientAdapter` giả trong file test, **không** thêm gói; `AssistantRepository` nhận `Dio?` qua constructor (không truyền → tự tạo như Copilot) | Project ít gói; 4 tình huống tự viết là đủ |
+| C1 | Simulator không đăng nhập Google | `assistant_preview_main.dart` đọc `DEV_JWT` (`--dart-define`), chỉ khi `kDebugMode` → lưu token trước `runApp` | Lấy dữ liệu thật mà không đụng luồng đăng nhập (`avatar-3d-complete.md` #1) |
+| C2 | Lấy token từ Android | Đọc qua `adb` bằng `debugPrint` tạm, không commit; token chỉ nằm trong terminal | Không lộ token (#2) |
+| C3 | Mic trên Simulator | `DEV_UTTERANCE` (chỉ debug): màn xem thử tự "nói" câu đó 2 s sau `ready`, đi đúng luồng bước 8, bỏ qua STT | Quay video tự động; mic thật đã kiểm trên Android (#3) |
+| C4 | Tự kiểm hình | `DEV_AVATAR_TOUR` (chỉ debug): `neutral` → `happy` → `thinking` → `sad` → nói 3 s, mỗi trạng thái 2 s; chụp `simctl` | Claude Code tự duyệt bước 2–3 (#4) |
+| C5 | Ảnh / video | Ảnh `docs/avatar/screenshots/*.png` (≤ 300 KB, commit); video `docs/avatar/demo.mp4` không commit | Repo không phình (#5) |
+| C6 | `model.vrm` > 10 MB | `shrink_vrm.py` thu ảnh > 1024 px về 1024, giữ JSON VRM; không đạt → giữ file cũ | Không phụ thuộc VRoid (#6) |
+| C7 | File plugin macOS / Windows / Linux | Commit | File Flutter tự sinh, repo đã theo dõi (#7) |
+| C8 | File iOS khi ký app | Bỏ `DEVELOPMENT_TEAM`, giữ bundle ID gốc; commit `Podfile` / `Podfile.lock`; không commit `Pods/`, `xcuserdata/` | Không lộ Team ID (#8) |
+| C9 | Beta `flutter_inappwebview`, cảnh báo Kotlin `flutter_tts` | Giữ nguyên, ghi vào PR | Ngoài phạm vi (#9) |
 
 ## 2. Bên trong — logic
 
@@ -130,7 +139,7 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | T1 | unit | `intent_router`: có dấu / không dấu / tiếng Anh / câu không liên quan | Khớp đúng | AC3, AC4 |
 | T2 | unit | `briefing_speech`: 0 / 1 / 3+ việc, có / không deadline nguy hiểm, chưa kết nối lịch | Câu đúng mẫu, ≤ 60 từ, không có tên nội bộ | AC3 |
 | T3 | unit | `assistant_repository` với Dio giả: 200, 401, 500, timeout | Đúng model / đúng loại lỗi | AC6 |
-| T4 | tay | Mở màn trợ lý trên emulator và máy thật | Nhân vật hiện, chớp mắt, thở | AC1 |
+| T4 | tay | Mở màn trợ lý trên emulator và iOS Simulator | Nhân vật hiện, chớp mắt, thở | AC1 |
 | T5 | tay | Nói "Hôm nay tôi nên làm gì" | Chữ hiện, nhân vật đọc dữ liệu thật, miệng nhép | AC2, AC3, AC5 |
 | T6 | tay | Bấm micro khi đang đọc | Dừng đọc ngay | AC5 |
 | T7 | tay | Tắt mạng; từ chối quyền micro | Câu báo lỗi, không dữ liệu giả | AC6 |
@@ -174,3 +183,4 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | Bước 8 (chờ Hiếu thử T5–T7 bằng giọng thật + đăng nhập Google thật): `AssistantScreen` ghép đủ luồng — bấm giữ → dừng TTS, `neutral`, nghe; thả → câu rỗng: "Mình chưa nghe rõ…"; không khớp: câu gợi ý (AC4, không gọi API); khớp: `thinking` + "Đang xem lịch hôm nay…" → `/briefing/today` → `BriefingSpeech` → `happy` (có deadline nguy hiểm: `neutral`) → đọc + hiện chữ; lỗi API / quyền micro → `sad` + đọc + hiện chữ (AC6). Câu trả lời về sau một lần bấm mới bị bỏ (đếm lượt). Xoá 3 nút thử bước 3–4. `assistant_preview_main.dart` nạp `.env` | Biểu cảm `sad` cho lỗi là chọn thêm (plan chỉ ghi `neutral`/`thinking`/`happy`). Emulator Mac mini không có micro → chưa thử được nói thật |
 | 2026-10-29 | Bước 9 (một phần): sửa `test/widget_test.dart` (nạp `dotenv` bằng `loadFromString` + `FlutterSecureStorage.setMockInitialValues`). T8: `flutter analyze` sạch toàn project, `flutter test` 22/22 xanh | Còn lại của bước 9: Hiếu quay video demo 30 giây trên máy thật (cần gỡ chặn cài app trên iPhone hoặc mượn Android + Google Sign-In thật) → mới tick bước 9 |
 | 2026-10-29 | Hiếu kiểm trên Android emulator (đăng nhập Google thật): nói tiếng Việt → chữ hiện, hỏi "hôm nay" → nhân vật đọc dữ liệu thật, câu khác → câu gợi ý → tick bước 5 và 8. Để emulator nghe được cần: quyền Micro cho emulator trong macOS, gói nhận giọng tiếng Việt trên emulator, AVD `hw.ramSize` 4096 | Còn: bước 2–3 (miệng / biểu cảm chỉ thấy trên máy thật hoặc Chrome), bước 9 (video demo trên máy thật) |
+| 2026-10-29 | Bắt đầu `plans/avatar-3d-complete.md` (bước 1): AC1 / T4 đổi máy thật → iOS Simulator; thêm quyết định C1–C9 | iPhone bị chặn cài app. `avatar-3d-finish.md` không có trong repo nên không cần đánh dấu "Thay bởi" |
