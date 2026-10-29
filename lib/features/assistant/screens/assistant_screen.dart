@@ -3,24 +3,26 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../data/assistant_repository.dart';
 import '../logic/assistant_listener.dart';
+import '../logic/assistant_turn.dart';
 import '../logic/assistant_voice.dart';
-import '../logic/briefing_speech.dart';
-import '../logic/intent_router.dart';
 import '../widgets/avatar_view.dart';
 
 /// Voice assistant: hold the mic, speak, and the avatar answers aloud
 /// (plan section 2, "Luồng một lần nói").
 class AssistantScreen extends StatefulWidget {
-  const AssistantScreen({super.key});
+  /// Debug only (C3): said automatically 2 s after the avatar is ready, skipping the mic.
+  final String? devUtterance;
+
+  /// Debug only (C4): cycles every emotion and the mouth once, for screenshots.
+  final bool devTour;
+
+  const AssistantScreen({super.key, this.devUtterance, this.devTour = false});
 
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
 }
 
 class _AssistantScreenState extends State<AssistantScreen> {
-  static const String _notHeard =
-      'Mình chưa nghe rõ, bạn giữ nút và nói lại nhé.';
-
   final AvatarController _avatar = AvatarController();
   late final AssistantVoice _voice = AssistantVoice(
     onSpeakingChanged: _avatar.setSpeaking,
@@ -28,6 +30,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
   final AssistantListener _listener = AssistantListener();
   // Created on first use: it reads AppConfig, which needs .env to be loaded.
   late final AssistantRepository _repository = AssistantRepository();
+  late final AssistantTurn _assistant = AssistantTurn(
+    fetchBriefing: _repository.getTodayBriefing,
+  );
 
   bool _avatarReady = false;
   bool _holding = false;
@@ -92,28 +97,45 @@ class _AssistantScreenState extends State<AssistantScreen> {
   }
 
   Future<void> _answer(String sentence, int turn) async {
-    if (sentence.trim().isEmpty) {
-      await _say(_notHeard, AvatarEmotion.neutral);
-      return;
+    if (AssistantTurn.needsBriefing(sentence)) {
+      _avatar.setEmotion(AvatarEmotion.thinking);
+      setState(() => _thinking = true);
     }
-    if (IntentRouter.route(sentence) != AssistantIntent.briefing) {
-      await _say(IntentRouter.fallbackReply, AvatarEmotion.neutral);
-      return;
-    }
+    final reply = await _assistant.answer(sentence);
+    if (!mounted || turn != _turn) return;
+    await _say(reply.text, reply.emotion);
+  }
 
-    _avatar.setEmotion(AvatarEmotion.thinking);
-    setState(() => _thinking = true);
-    try {
-      final briefing = await _repository.getTodayBriefing();
-      if (!mounted || turn != _turn) return;
-      await _say(
-        BriefingSpeech.build(briefing),
-        briefing.hasRisk ? AvatarEmotion.neutral : AvatarEmotion.happy,
-      );
-    } on AssistantException catch (e) {
-      if (!mounted || turn != _turn) return;
-      await _say(e.message, AvatarEmotion.sad);
+  void _onAvatarReady() {
+    setState(() => _avatarReady = true);
+    if (widget.devTour) _runDevTour();
+    final utterance = widget.devUtterance;
+    if (utterance != null && utterance.isNotEmpty) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        debugPrint('[dev] utterance: $utterance');
+        final turn = ++_turn;
+        setState(() => _heard = utterance);
+        _answer(utterance, turn);
+      });
     }
+  }
+
+  // Each step is logged so screenshots can be timed from the log.
+  Future<void> _runDevTour() async {
+    const hold = Duration(seconds: 2);
+    for (final emotion in AvatarEmotion.values) {
+      debugPrint('[tour] ${emotion.name}');
+      _avatar.setEmotion(emotion);
+      await Future.delayed(hold);
+      if (!mounted) return;
+    }
+    debugPrint('[tour] speaking');
+    _avatar.setEmotion(AvatarEmotion.neutral);
+    _avatar.setSpeaking(true);
+    await Future.delayed(const Duration(seconds: 3));
+    _avatar.setSpeaking(false);
+    debugPrint('[tour] done');
   }
 
   /// Shows [text] and reads it aloud; the text stays on screen when there is no Vietnamese voice.
@@ -148,7 +170,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
             Expanded(
               child: AvatarView(
                 controller: _avatar,
-                onReady: () => setState(() => _avatarReady = true),
+                onReady: _onAvatarReady,
               ),
             ),
             _buildConversation(),

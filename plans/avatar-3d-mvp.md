@@ -101,6 +101,7 @@ lib/features/assistant/
   logic/intent_router.dart           — luật từ khóa (#4)
   logic/briefing_speech.dart         — ghép câu đọc từ JSON briefing
   logic/assistant_voice.dart         — bọc flutter_tts (vi-VN), báo đang đọc / dừng cho miệng avatar
+  logic/assistant_turn.dart          — chọn câu trả lời + biểu cảm cho 1 câu (dùng chung cho giọng thật và DEV_UTTERANCE)
   logic/assistant_listener.dart      — bọc speech_to_text (vi_VN), bấm giữ để nghe, thả để lấy câu cuối
   widgets/avatar_view.dart           — InAppWebView + cầu nối JS
   screens/assistant_screen.dart      — màn hình: avatar, chữ nhận dạng, nút micro
@@ -184,3 +185,4 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | Bước 9 (một phần): sửa `test/widget_test.dart` (nạp `dotenv` bằng `loadFromString` + `FlutterSecureStorage.setMockInitialValues`). T8: `flutter analyze` sạch toàn project, `flutter test` 22/22 xanh | Còn lại của bước 9: Hiếu quay video demo 30 giây trên máy thật (cần gỡ chặn cài app trên iPhone hoặc mượn Android + Google Sign-In thật) → mới tick bước 9 |
 | 2026-10-29 | Hiếu kiểm trên Android emulator (đăng nhập Google thật): nói tiếng Việt → chữ hiện, hỏi "hôm nay" → nhân vật đọc dữ liệu thật, câu khác → câu gợi ý → tick bước 5 và 8. Để emulator nghe được cần: quyền Micro cho emulator trong macOS, gói nhận giọng tiếng Việt trên emulator, AVD `hw.ramSize` 4096 | Còn: bước 2–3 (miệng / biểu cảm chỉ thấy trên máy thật hoặc Chrome), bước 9 (video demo trên máy thật) |
 | 2026-10-29 | Bắt đầu `plans/avatar-3d-complete.md` (bước 1): AC1 / T4 đổi máy thật → iOS Simulator; thêm quyết định C1–C9 | iPhone bị chặn cài app. `avatar-3d-finish.md` không có trong repo nên không cần đánh dấu "Thay bởi" |
+| 2026-10-29 | complete bước 2: `DEV_JWT` / `DEV_UTTERANCE` / `DEV_AVATAR_TOUR` trong `assistant_preview_main.dart` (chỉ `kDebugMode`); `AssistantScreen(devUtterance, devTour)`; tách `AssistantTurn` khỏi màn hình để câu dev đi đúng luồng câu nói thật; thêm `StorageService.saveAccessToken` (chỉ thêm, không đổi hàm cũ). Test `assistant_turn_test.dart` 6/6 | `kDebugMode` luôn `true` trong `flutter test` nên không test được nhánh release — kiểm bằng đọc code: cả 3 option đều bọc `kDebugMode` ở `main()` |
