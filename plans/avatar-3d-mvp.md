@@ -14,7 +14,7 @@ Claude Code chỉ được tick checkbox ở mục 0 và 4, và DỪNG sau mỗi
 - **Vì sao MVP chỉ 1 lệnh:** chứng minh cả đường ống (micro → chữ → API → giọng đọc → 3D) chạy được trên máy thật
   **mà chưa cần AI service làm thêm gì**. Lệnh thứ 2 trở đi sẽ do agent `/assistant/turn` của AI service xử lý (plan riêng, giai đoạn B).
 - **Tiêu chí xong:**
-  - [ ] AC1 — Nhân vật VRM hiện trong app (Android emulator + iOS Simulator — thay cho máy thật vì iPhone bị hồ sơ quản lý chặn cài app), có chớp mắt và thở nhẹ khi chờ; không giật, không màn trắng.
+  - [x] AC1 — Nhân vật VRM hiện trong app (Android emulator + iOS Simulator — thay cho máy thật vì iPhone bị hồ sơ quản lý chặn cài app), có chớp mắt và thở nhẹ khi chờ; không giật, không màn trắng.
   - [ ] AC2 — Bấm giữ micro → thấy chữ nhận dạng hiện dần (tiếng Việt); thả tay → gửi.
   - [ ] AC3 — Câu có ý "hôm nay / làm gì / ưu tiên / việc gì" → gọi `/briefing/today` → nhân vật đọc: số việc trên lịch hôm nay + tối đa 3 việc nên làm trước kèm lý do + deadline nguy hiểm (nếu có).
   - [ ] AC4 — Câu khác → nhân vật nói câu gợi ý "Bạn thử hỏi: Hôm nay tôi nên làm gì?". Không gọi API.
@@ -154,9 +154,9 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 - [x] **1.** **Spike 3D (quan trọng nhất):** thêm `flutter_inappwebview`; `assets/avatar/index.html` hiện **1 khối lập phương xoay** (WebGL thuần, chưa cần three.js) qua `InAppLocalhostServer`;
   `INTERNET` + `network_security_config` (chỉ localhost) + khai báo `assets/avatar/`;
   màn `AssistantScreen` tạm mở từ FAB. Chạy được trên emulator thì mới đi tiếp. Không chạy → dừng, báo Hiếu để đổi cách (#1).
-- [ ] **2.** Đóng gói three.js + three-vrm thành `assets/avatar/avatar.js` (dùng `esbuild` qua `npx`, ghi lệnh build vào `assets/avatar/avatar_src/README.md`);
+- [x] **2.** Đóng gói three.js + three-vrm thành `assets/avatar/avatar.js` (dùng `esbuild` qua `npx`, ghi lệnh build vào `assets/avatar/avatar_src/README.md`);
   nạp `model.vrm` (Hiếu đưa file), camera ngang ngực, đèn, chớp mắt + thở. Gửi `ready` / `error` về Flutter — test: T4.
-- [ ] **3.** `avatar_view.dart` + API JS `setSpeaking` / `setEmotion` — thêm 2 nút thử tạm trên màn hình để bật/tắt miệng, đổi biểu cảm.
+- [x] **3.** `avatar_view.dart` + API JS `setSpeaking` / `setEmotion` — thêm 2 nút thử tạm trên màn hình để bật/tắt miệng, đổi biểu cảm.
 - [x] **4.** TTS: `flutter_tts` đọc 1 câu cố định, nối `onStart` / `onComplete` với `setSpeaking` — test: T6 (phần dừng đọc).
 - [x] **5.** STT: `speech_to_text` + quyền Android / iOS, nút bấm giữ micro, hiện chữ — test: T7 (phần quyền).
 - [x] **6.** `intent_router` + `briefing_speech` (logic thuần, chưa gọi API) — test: T1, T2.
@@ -191,3 +191,4 @@ lib/core/constants/api_endpoints.dart — thêm aiBriefingToday
 | 2026-10-29 | complete bước 4: `Podfile` đặt `platform :ios, '15.0'`, `pod install`, `flutter build ios --simulator --debug` qua (app ở `build/ios/Debug-iphonesimulator/Runner.app`; Flutter báo nhầm "expected app … iphoneos … not found" ở bước copy cuối, không ảnh hưởng `flutter run`). Commit `Podfile`, `Podfile.lock`, `Package.resolved` và phần CocoaPods trong `project.pbxproj`; đã bỏ `DEVELOPMENT_TEAM`, bundle ID giữ `com.metanoia.metanoiaMobile` (C8) | CocoaPods cảnh báo base configuration Profile — cảnh báo chuẩn của project Flutter, bỏ qua |
 | 2026-10-29 | complete bước 5–6 (DỪNG): app chạy trên Simulator "iPhone Duo" (iOS 27.1) — log có `[tour] neutral → happy → thinking → sad → speaking → done`, tức nhân vật đã nạp xong và gửi `ready`. Nhưng `xcrun simctl io … screenshot` ra **ảnh đen toàn bộ** (cả màn hình chính / Settings, cả `--mask=ignored`) | Xcode 27.1 trên máy không có `Simulator.app`, runtime iOS 27.1 chỉ tạo được máy "iPhone Duo" (iPhone 16e / 17 / 18 Pro đều báo Incompatible device) → màn hình Simulator không được vẽ khi không có cửa sổ Simulator. Cần Hiếu mở Simulator từ Xcode |
 | 2026-10-29 | complete bước 6: Hiếu mở Simulator từ Xcode → màn hình được vẽ. "iPhone Duo" có 2 màn hình, phải chụp `simctl io booted screenshot --display=1` (màn mặc định ra ảnh đen). `DEV_AVATAR_TOUR` chụp 21 ảnh: chờ mắt mở, chớp mắt (mắt nhắm), `happy` (cười, mắt híp), `thinking` (đầu nghiêng), `sad`, đang nói (miệng mở → khép khi dừng). 6 ảnh lưu `docs/avatar/screenshots/` (~72 KB mỗi ảnh) | Morph hiện đúng trên GPU thật của Mac — xác nhận lỗi trên Android chỉ do emulator |
+| 2026-10-29 | complete bước 7: tick bước 2, 3 và AC1 (Android emulator: hiện + thở; iOS Simulator: đủ chớp mắt / thở / 4 biểu cảm / miệng). Nạp: ~2,3 s từ lúc app hiện tới `ready` (gồm khởi động WebView + model 8,2 MB) | fps: không có overlay fps; JS giới hạn 30 fps, ảnh chụp liên tục không thấy giật. Chưa đo số fps thật |
