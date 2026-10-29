@@ -81,6 +81,7 @@ class AssistantVoice {
     _pending = false;
     if (_speaking == value) return;
     _speaking = value;
+    debugPrint('[tts] speaking: $value');
     onSpeakingChanged(value);
   }
 }

@@ -140,6 +140,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
 
   /// Shows [text] and reads it aloud; the text stays on screen when there is no Vietnamese voice.
   Future<void> _say(String text, AvatarEmotion emotion) async {
+    debugPrint('[assistant] ${emotion.name}: $text');
     _avatar.setEmotion(emotion);
     setState(() {
       _thinking = false;
