@@ -43,7 +43,7 @@ Bắt đầu cụm 2 khi FR-22 đã lên Azure. Claude Code làm theo cụm, d�
 **→ DỪNG: Hiếu đọc `assistant_controller.dart`.**
 
 **Cụm 2 — màn hình + chạy thật (cần FR-22 trên Azure)**
-- [ ] **3.** UI nút gợi ý / lựa chọn — T3.
+- [x] **3.** UI nút gợi ý / lựa chọn — T3.
 - [ ] **4.** Chạy thật T4; quay video 60 giây (hôm nay làm gì → chiều nay có gì → tôi hay trễ việc gì → câu ngoài phạm vi).
 - [ ] **5.** `flutter analyze` + `flutter test`; PR vào `main`.
 

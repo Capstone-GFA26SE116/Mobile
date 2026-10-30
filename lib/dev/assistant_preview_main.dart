@@ -7,7 +7,7 @@ import '../core/services/storage_service.dart';
 import '../features/assistant/screens/assistant_screen.dart';
 
 /// Dev-only entry point: opens AssistantScreen directly, skipping login.
-/// Without a token the briefing call answers 401 ("Phiên đăng nhập hết hạn").
+/// Without a token the assistant calls answer 401 ("Phiên đăng nhập hết hạn").
 /// Run: flutter run -t lib/dev/assistant_preview_main.dart
 ///
 /// Debug-only options (ignored in profile/release builds):
