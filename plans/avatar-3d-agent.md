@@ -39,7 +39,7 @@ Bắt đầu cụm 2 khi FR-22 đã lên Azure. Claude Code làm theo cụm, d�
 ## 4. Các bước
 **Cụm 1 — logic (không cần FR-22 chạy thật)**
 - [x] **1.** Model + repository `turn` — T1.
-- [ ] **2.** `assistant_controller` — T2.
+- [x] **2.** `assistant_controller` — T2.
 **→ DỪNG: Hiếu đọc `assistant_controller.dart`.**
 
 **Cụm 2 — màn hình + chạy thật (cần FR-22 trên Azure)**
