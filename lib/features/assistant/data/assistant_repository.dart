@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/api_endpoints.dart';
@@ -119,6 +120,8 @@ class AssistantRepository {
   }
 
   static AssistantErrorKind _kindOf(DioException e) {
+    debugPrint('[assistant] ${e.requestOptions.path} failed: '
+        '${e.response?.statusCode ?? e.type.name} ${e.response?.data ?? ''}');
     switch (e.response?.statusCode) {
       case 401:
         return AssistantErrorKind.unauthorized;
