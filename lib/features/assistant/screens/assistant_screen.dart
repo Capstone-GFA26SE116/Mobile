@@ -13,6 +13,7 @@ import '../widgets/avatar_view.dart';
 /// through [AssistantController] (agent plan section 2).
 class AssistantScreen extends StatefulWidget {
   /// Debug only (C3): said automatically 2 s after the avatar is ready, skipping the mic.
+  /// Several sentences separated by `|` are said one after another.
   final String? devUtterance;
 
   /// Debug only (C4): cycles every emotion and the mouth once, for screenshots.
@@ -111,14 +112,27 @@ class _AssistantScreenState extends State<AssistantScreen> {
   void _onAvatarReady() {
     setState(() => _avatarReady = true);
     if (widget.devTour) _runDevTour();
-    final utterance = widget.devUtterance;
-    if (utterance != null && utterance.isNotEmpty) {
-      Future.delayed(const Duration(seconds: 2), () {
-        if (!mounted) return;
-        debugPrint('[dev] utterance: $utterance');
-        _turn++;
-        _assistant.ask(utterance);
-      });
+    final utterances = (widget.devUtterance ?? '')
+        .split('|')
+        .map((u) => u.trim())
+        .where((u) => u.isNotEmpty)
+        .toList();
+    if (utterances.isNotEmpty) _runDevUtterances(utterances);
+  }
+
+  /// Says each sentence 2 s after the avatar is ready or has finished the previous answer.
+  Future<void> _runDevUtterances(List<String> utterances) async {
+    for (final utterance in utterances) {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      debugPrint('[dev] utterance: $utterance');
+      _turn++;
+      await _assistant.ask(utterance);
+      // ask() returns once the voice starts; wait until the avatar is done speaking.
+      for (var i = 0; i < 300 && mounted; i++) {
+        if (_assistant.phase == AssistantPhase.idle) break;
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
     }
   }
 

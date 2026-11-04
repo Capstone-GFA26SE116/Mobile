@@ -12,7 +12,8 @@ import '../features/assistant/screens/assistant_screen.dart';
 ///
 /// Debug-only options (ignored in profile/release builds):
 ///   `--dart-define=DEV_JWT=TOKEN`            use a real token, e.g. copied from Android (C1)
-///   --dart-define=DEV_UTTERANCE="Hôm nay…"   say this 2 s after the avatar is ready (C3)
+///   --dart-define=DEV_UTTERANCE="Hôm nay…"   say this 2 s after the avatar is ready (C3);
+///                                            "câu 1|câu 2" says them one after another
 ///   --dart-define=DEV_AVATAR_TOUR=true       cycle emotions + mouth for screenshots (C4)
 const String _devJwt = String.fromEnvironment('DEV_JWT');
 const String _devUtterance = String.fromEnvironment('DEV_UTTERANCE');

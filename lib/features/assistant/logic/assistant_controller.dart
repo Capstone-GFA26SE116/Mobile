@@ -138,6 +138,7 @@ class AssistantController extends ChangeNotifier {
         selectedId: selectedId,
       );
       if (generation != _generation) return;
+      debugPrint('[assistant] turn: ${turn.kind.name} ${turn.tool ?? '-'}');
       _history = _trimmed([
         ...history,
         TurnHistoryEntry(TurnRole.user, text),
