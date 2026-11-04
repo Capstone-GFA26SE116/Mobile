@@ -52,3 +52,4 @@ Bắt đầu cụm 2 khi FR-22 đã lên Azure. Claude Code làm theo cụm, d�
 |---|---|---|
 | 2026-10-29 | Tạo plan (có lệnh ghi + thẻ xác nhận) | Đi cùng FR-22 |
 | 2026-10-30 | Viết lại cho giai đoạn 1 chỉ đọc: bỏ thẻ xác nhận / `confirm_words`, thêm nút gợi ý + `clarify` | Hiếu chốt: bước đầu chỉ nối API GET |
+| 2026-11-04 | Bước 4 (T4) chạy dở trên emulator Android (`DEV_UTTERANCE` nhiều câu, `DEV_UTTERANCE_GAP=60`, FR-22 trên Azure, JWT thật). **Đúng 2/10**: `estimation_habits`, `list_projects` (JWT của Mobile qua được Backend, không dính lỗi 401 của FR-22 bước 10). 8 câu còn lại 502 "AI is not available": Gemini gói Free hết quota trong ngày. AC4 thấy chạy thật: 502 + "Hôm nay tôi nên làm gì?" → đọc `/briefing/today`; câu khác → "chưa kết nối được máy chủ". **Lỗi:** "Tôi đang bấm giờ việc gì vậy?" khớp từ khóa `viec gi` → đường dự phòng đọc briefing, sai câu | Chạy lại khi Gemini còn quota / có key trả phí |
