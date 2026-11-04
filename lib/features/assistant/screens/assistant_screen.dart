@@ -16,10 +16,18 @@ class AssistantScreen extends StatefulWidget {
   /// Several sentences separated by `|` are said one after another.
   final String? devUtterance;
 
+  /// Debug only: seconds between two dev sentences (the free Gemini tier allows few per minute).
+  final int devUtteranceGap;
+
   /// Debug only (C4): cycles every emotion and the mouth once, for screenshots.
   final bool devTour;
 
-  const AssistantScreen({super.key, this.devUtterance, this.devTour = false});
+  const AssistantScreen({
+    super.key,
+    this.devUtterance,
+    this.devUtteranceGap = 2,
+    this.devTour = false,
+  });
 
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
@@ -120,10 +128,13 @@ class _AssistantScreenState extends State<AssistantScreen> {
     if (utterances.isNotEmpty) _runDevUtterances(utterances);
   }
 
-  /// Says each sentence 2 s after the avatar is ready or has finished the previous answer.
+  /// Says each sentence [AssistantScreen.devUtteranceGap] s after the avatar is ready or has
+  /// finished the previous answer.
   Future<void> _runDevUtterances(List<String> utterances) async {
-    for (final utterance in utterances) {
-      await Future.delayed(const Duration(seconds: 2));
+    for (final (index, utterance) in utterances.indexed) {
+      await Future.delayed(
+        Duration(seconds: index == 0 ? 2 : widget.devUtteranceGap),
+      );
       if (!mounted) return;
       debugPrint('[dev] utterance: $utterance');
       _turn++;
