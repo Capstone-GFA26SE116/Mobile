@@ -2,21 +2,32 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../data/assistant_repository.dart';
+import '../logic/assistant_controller.dart';
 import '../logic/assistant_listener.dart';
-import '../logic/assistant_turn.dart';
 import '../logic/assistant_voice.dart';
+import '../widgets/assistant_prompts.dart';
 import '../widgets/avatar_view.dart';
 
 /// Voice assistant: hold the mic, speak, and the avatar answers aloud
-/// (plan section 2, "Luồng một lần nói").
+/// (MVP plan section 2, "Luồng một lần nói"); answers come from `/assistant/turn`
+/// through [AssistantController] (agent plan section 2).
 class AssistantScreen extends StatefulWidget {
   /// Debug only (C3): said automatically 2 s after the avatar is ready, skipping the mic.
+  /// Several sentences separated by `|` are said one after another.
   final String? devUtterance;
+
+  /// Debug only: seconds between two dev sentences (the free Gemini tier allows few per minute).
+  final int devUtteranceGap;
 
   /// Debug only (C4): cycles every emotion and the mouth once, for screenshots.
   final bool devTour;
 
-  const AssistantScreen({super.key, this.devUtterance, this.devTour = false});
+  const AssistantScreen({
+    super.key,
+    this.devUtterance,
+    this.devUtteranceGap = 2,
+    this.devTour = false,
+  });
 
   @override
   State<AssistantScreen> createState() => _AssistantScreenState();
@@ -25,29 +36,43 @@ class AssistantScreen extends StatefulWidget {
 class _AssistantScreenState extends State<AssistantScreen> {
   final AvatarController _avatar = AvatarController();
   late final AssistantVoice _voice = AssistantVoice(
-    onSpeakingChanged: _avatar.setSpeaking,
+    onSpeakingChanged: _onSpeakingChanged,
   );
   final AssistantListener _listener = AssistantListener();
-  // Created on first use: it reads AppConfig, which needs .env to be loaded.
-  late final AssistantRepository _repository = AssistantRepository();
-  late final AssistantTurn _assistant = AssistantTurn(
-    fetchBriefing: _repository.getTodayBriefing,
-  );
+  // Created on first use: AssistantRepository reads AppConfig, which needs .env to be loaded.
+  late final AssistantController _assistant = AssistantController(
+    repository: AssistantRepository(),
+    speak: _voice.speak,
+  )..addListener(_onAssistantChanged);
 
   bool _avatarReady = false;
   bool _holding = false;
+  // The mic is recording (the controller's phase also covers the prompts and replies).
   bool _listening = false;
-  bool _thinking = false;
-  String _heard = '';
-  String? _reply;
-  // Bumped on every mic press, so an answer that arrives after a new question is dropped.
+  AvatarEmotion _shownEmotion = AvatarEmotion.neutral;
+  // Bumped on every mic press or tap, so a sentence heard before it is dropped.
   int _turn = 0;
 
   @override
   void dispose() {
     _listener.cancel();
     _voice.dispose();
+    _assistant.dispose();
     super.dispose();
+  }
+
+  void _onAssistantChanged() {
+    final emotion = _assistant.emotion;
+    if (emotion != _shownEmotion) {
+      _shownEmotion = emotion;
+      _avatar.setEmotion(emotion);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _onSpeakingChanged(bool speaking) {
+    _avatar.setSpeaking(speaking);
+    _assistant.speakingChanged(speaking);
   }
 
   Future<void> _onMicDown() async {
@@ -55,22 +80,13 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _turn++;
     // Pressing the mic interrupts the avatar (AC5).
     await _voice.stop();
-    _avatar.setEmotion(AvatarEmotion.neutral);
-    setState(() {
-      _thinking = false;
-      _heard = '';
-      _reply = null;
-    });
+    _assistant.startListening();
 
-    final failure = await _listener.start(
-      onWords: (words) {
-        if (mounted) setState(() => _heard = words);
-      },
-    );
+    final failure = await _listener.start(onWords: _assistant.updateHeard);
     if (!mounted) return;
     if (failure != null) {
       _holding = false;
-      await _say(
+      await _assistant.say(
         failure == ListenFailure.permissionDenied
             ? AssistantListener.permissionDeniedMessage
             : AssistantListener.unavailableMessage,
@@ -86,38 +102,48 @@ class _AssistantScreenState extends State<AssistantScreen> {
   Future<void> _onMicUp() async {
     _holding = false;
     if (!_listening) return;
+    setState(() => _listening = false);
     final turn = _turn;
     final sentence = await _listener.finish();
     if (!mounted || turn != _turn) return;
-    setState(() {
-      _listening = false;
-      _heard = sentence;
-    });
-    await _answer(sentence, turn);
+    await _assistant.ask(sentence);
   }
 
-  Future<void> _answer(String sentence, int turn) async {
-    if (AssistantTurn.needsBriefing(sentence)) {
-      _avatar.setEmotion(AvatarEmotion.thinking);
-      setState(() => _thinking = true);
-    }
-    final reply = await _assistant.answer(sentence);
-    if (!mounted || turn != _turn) return;
-    await _say(reply.text, reply.emotion);
+  /// A tapped suggestion or option counts as a new question: stop speaking, then send it.
+  Future<void> _onPromptTapped(Future<void> Function() send) async {
+    _turn++;
+    await _voice.stop();
+    if (!mounted) return;
+    await send();
   }
 
   void _onAvatarReady() {
     setState(() => _avatarReady = true);
     if (widget.devTour) _runDevTour();
-    final utterance = widget.devUtterance;
-    if (utterance != null && utterance.isNotEmpty) {
-      Future.delayed(const Duration(seconds: 2), () {
-        if (!mounted) return;
-        debugPrint('[dev] utterance: $utterance');
-        final turn = ++_turn;
-        setState(() => _heard = utterance);
-        _answer(utterance, turn);
-      });
+    final utterances = (widget.devUtterance ?? '')
+        .split('|')
+        .map((u) => u.trim())
+        .where((u) => u.isNotEmpty)
+        .toList();
+    if (utterances.isNotEmpty) _runDevUtterances(utterances);
+  }
+
+  /// Says each sentence [AssistantScreen.devUtteranceGap] s after the avatar is ready or has
+  /// finished the previous answer.
+  Future<void> _runDevUtterances(List<String> utterances) async {
+    for (final (index, utterance) in utterances.indexed) {
+      await Future.delayed(
+        Duration(seconds: index == 0 ? 2 : widget.devUtteranceGap),
+      );
+      if (!mounted) return;
+      debugPrint('[dev] utterance: $utterance');
+      _turn++;
+      await _assistant.ask(utterance);
+      // ask() returns once the voice starts; wait until the avatar is done speaking.
+      for (var i = 0; i < 300 && mounted; i++) {
+        if (_assistant.phase == AssistantPhase.idle) break;
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
     }
   }
 
@@ -136,20 +162,6 @@ class _AssistantScreenState extends State<AssistantScreen> {
     await Future.delayed(const Duration(seconds: 3));
     _avatar.setSpeaking(false);
     debugPrint('[tour] done');
-  }
-
-  /// Shows [text] and reads it aloud; the text stays on screen when there is no Vietnamese voice.
-  Future<void> _say(String text, AvatarEmotion emotion) async {
-    debugPrint('[assistant] ${emotion.name}: $text');
-    _avatar.setEmotion(emotion);
-    setState(() {
-      _thinking = false;
-      _reply = text;
-    });
-    final spoke = await _voice.speak(text);
-    if (!spoke && mounted) {
-      setState(() => _reply = '$text\n(${AssistantVoice.noVietnameseVoice})');
-    }
   }
 
   @override
@@ -183,18 +195,20 @@ class _AssistantScreenState extends State<AssistantScreen> {
   }
 
   Widget _buildConversation() {
+    final heard = _assistant.heard;
+    final reply = _assistant.reply;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Column(
         children: [
-          if (_listening && _heard.isEmpty)
+          if (_assistant.phase == AssistantPhase.listening && heard.isEmpty)
             const Text(
               'Đang nghe…',
               style: TextStyle(color: AppColors.textMuted, fontSize: 15),
             )
-          else if (_heard.isNotEmpty)
+          else if (heard.isNotEmpty)
             Text(
-              '“$_heard”',
+              '“$heard”',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textSecondary,
@@ -202,19 +216,21 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 fontStyle: FontStyle.italic,
               ),
             ),
-          if (_thinking)
+          if (_assistant.phase == AssistantPhase.thinking)
             const Padding(
               padding: EdgeInsets.only(top: 8),
               child: Text(
-                'Đang xem lịch hôm nay…',
+                'Đang tìm câu trả lời…',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
             ),
-          if (_reply != null)
+          if (reply != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                _reply!,
+                _assistant.noVoice
+                    ? '$reply\n(${AssistantVoice.noVietnameseVoice})'
+                    : reply,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
@@ -222,6 +238,14 @@ class _AssistantScreenState extends State<AssistantScreen> {
                 ),
               ),
             ),
+          AssistantPrompts(
+            options: _assistant.options,
+            suggestions: _assistant.suggestions,
+            onOption: (option) =>
+                _onPromptTapped(() => _assistant.choose(option)),
+            onSuggestion: (sentence) =>
+                _onPromptTapped(() => _assistant.ask(sentence)),
+          ),
         ],
       ),
     );

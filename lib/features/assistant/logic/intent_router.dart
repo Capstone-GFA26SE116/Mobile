@@ -13,8 +13,40 @@ class IntentRouter {
     'today',
   ];
 
+  /// Words that point to another `/assistant/turn` tool (timer, habits, projects, quota,
+  /// another part of the day). A sentence with one of them is not "what do I do today",
+  /// even when it also says "viec gi" or "hom nay" — reading the briefing would answer wrongly.
+  static const List<String> _otherTopicKeywords = [
+    'bam gio',
+    'dang chay',
+    'timer',
+    'tre',
+    'thoi quen',
+    'uoc tinh',
+    'bao lau',
+    'du an',
+    'project',
+    'projects',
+    'tien do',
+    'luot',
+    'quota',
+    'khung gio',
+    'gio nao',
+    'sang nay',
+    'chieu nay',
+    'toi nay',
+    'ngay mai',
+    'tomorrow',
+    'morning',
+    'afternoon',
+    'evening',
+  ];
+
   static AssistantIntent route(String sentence) {
     final text = normalize(sentence);
+    for (final keyword in _otherTopicKeywords) {
+      if (RegExp('\\b$keyword\\b').hasMatch(text)) return AssistantIntent.unknown;
+    }
     for (final keyword in _briefingKeywords) {
       if (RegExp('\\b$keyword\\b').hasMatch(text)) return AssistantIntent.briefing;
     }
