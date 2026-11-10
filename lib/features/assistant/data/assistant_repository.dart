@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/api_endpoints.dart';
+import '../../../core/network/token_refresher.dart';
 import '../../../core/services/storage_service.dart';
 import '../models/assistant_turn.dart';
 import '../models/briefing.dart';
@@ -60,6 +61,7 @@ class AssistantRepository {
         },
       ),
     );
+    _aiDio.interceptors.add(RefreshOnUnauthorized(_aiDio));
   }
 
   Future<Briefing> getTodayBriefing() async {

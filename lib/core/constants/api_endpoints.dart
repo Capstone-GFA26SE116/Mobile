@@ -2,6 +2,7 @@ class ApiEndpoints {
   // Auth & Profile
   static const String loginGoogle = '/api/Auth/google';
   static const String refreshToken = '/api/Auth/refresh';
+  static const String logout = '/api/Auth/logout';
   static const String me = '/api/me';
   static const String meProfile = '/api/me/profile';
   static const String meSettings = '/api/me/settings';
