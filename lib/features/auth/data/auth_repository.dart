@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/token_refresher.dart';
 import '../../../core/services/storage_service.dart';
 import '../models/auth_response.dart';
 
@@ -168,22 +169,8 @@ class AuthRepository {
       return authResponse;
     }
 
-    final Response response = await _apiClient.dio.post(
-      ApiEndpoints.refreshToken,
-      data: {'refreshToken': currentRefreshToken},
-    );
-
-    final authResponse = AuthResponse.fromJson(response.data as Map<String, dynamic>);
-    await _storageService.saveAuthData(
-      accessToken: authResponse.accessToken,
-      refreshToken: authResponse.refreshToken,
-      userId: authResponse.userId,
-      email: authResponse.email,
-      fullName: authResponse.fullName,
-      role: authResponse.role,
-    );
-
-    return authResponse;
+    // Shared with the 401 interceptor so two refreshes never run at once.
+    return TokenRefresher.instance.refresh();
   }
 
   // 5. Logout
@@ -192,7 +179,7 @@ class AuthRepository {
     try {
       if (currentRefreshToken != null && !currentRefreshToken.startsWith('demo_')) {
         await _apiClient.dio.post(
-          ApiEndpoints.refreshToken,
+          ApiEndpoints.logout,
           data: {
             'refreshToken': currentRefreshToken,
             'allDevices': true,
