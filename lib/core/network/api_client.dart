@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../config/app_config.dart';
 import '../services/storage_service.dart';
+import 'token_refresher.dart';
 
 class ApiClient {
   static String get baseUrl => AppConfig.apiBaseUrl;
@@ -41,6 +42,7 @@ class ApiClient {
         },
       ),
     );
+    dio.interceptors.add(RefreshOnUnauthorized(dio));
   }
 
   /// Safe error message extraction, ensuring clean, human-readable strings
