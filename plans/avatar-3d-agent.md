@@ -1,6 +1,6 @@
 # Trợ lý 3D — giai đoạn 1: hỏi đáp dữ liệu bằng giọng (Mobile)
 
-Trạng thái: Đã duyệt · Branch: `feature/avatar-3d-agent` (tách từ `feature/avatar-3d` sau khi MVP merge) · Cập nhật: 2026-10-30
+Trạng thái: Xong (AC3 `clarify` chưa thử thật — tài khoản thử chỉ có 1 dự án; đã có unit + widget test) · Branch: `feature/avatar-3d-agent` (PR #2, đã merge) · Cập nhật: 2026-11-10
 
 <!-- Viết trên Claude web (2026-10-30). Phía server: plans/FR-22.md (repo AI) — giai đoạn 1 CHỈ ĐỌC.
 Bắt đầu cụm 2 khi FR-22 đã lên Azure. Claude Code làm theo cụm, dừng ở cuối cụm. -->
