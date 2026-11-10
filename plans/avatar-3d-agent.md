@@ -45,7 +45,7 @@ Bắt đầu cụm 2 khi FR-22 đã lên Azure. Claude Code làm theo cụm, d�
 **Cụm 2 — màn hình + chạy thật (cần FR-22 trên Azure)**
 - [x] **3.** UI nút gợi ý / lựa chọn — T3.
 - [ ] **4.** Chạy thật T4; quay video 60 giây (hôm nay làm gì → chiều nay có gì → tôi hay trễ việc gì → câu ngoài phạm vi).
-- [ ] **5.** `flutter analyze` + `flutter test`; PR vào `main`.
+- [x] **5.** `flutter analyze` + `flutter test`; PR vào `main`.
 
 ## 5. Nhật ký thay đổi
 | Ngày | Thay đổi | Lý do |
@@ -55,3 +55,4 @@ Bắt đầu cụm 2 khi FR-22 đã lên Azure. Claude Code làm theo cụm, d�
 | 2026-11-04 | Bước 4 (T4) chạy dở trên emulator Android (`DEV_UTTERANCE` nhiều câu, `DEV_UTTERANCE_GAP=60`, FR-22 trên Azure, JWT thật). **Đúng 2/10**: `estimation_habits`, `list_projects` (JWT của Mobile qua được Backend, không dính lỗi 401 của FR-22 bước 10). 8 câu còn lại 502 "AI is not available": Gemini gói Free hết quota trong ngày. AC4 thấy chạy thật: 502 + "Hôm nay tôi nên làm gì?" → đọc `/briefing/today`; câu khác → "chưa kết nối được máy chủ". **Lỗi:** "Tôi đang bấm giờ việc gì vậy?" khớp từ khóa `viec gi` → đường dự phòng đọc briefing, sai câu | Chạy lại khi Gemini còn quota / có key trả phí |
 | 2026-11-10 | Sửa lỗi từ khóa của đường dự phòng: câu có từ của công cụ khác (bấm giờ, trễ, dự án, lượt, buổi khác / ngày mai…) không còn khớp briefing. Thêm test | "Tôi đang bấm giờ việc gì" và "Tôi hay trễ việc gì" (câu trong video) đọc nhầm briefing |
 | 2026-11-10 | Bước 4 (T4) chạy lại trên emulator Android (`DEV_UTTERANCE` 10 câu, `DEV_UTTERANCE_GAP=20`, FR-22 trên Azure, JWT thật). **Đúng 9/10**, không lỗi mạng / quota: `today_briefing`, `at_risk_deadlines`, `schedule_for` (chiều nay), `running_timer`, `productive_hours`, `similar_task_time`, `project_progress` (không có dự án "landing page" → "không tìm thấy" + `sad`, đúng), `list_projects`, `ai_quota`. **Sai:** "Tôi hay trễ việc gì?" → `at_risk_deadlines` thay vì `estimation_habits` — prompt `assistant_router_v1` ghi "what may be late" cho `at_risk_deadlines`, còn `estimation_habits` không có chữ "trễ". Chưa chạy `unsupported` / `clarify` thật; chưa quay video | Sửa ở FR-22 (prompt `v2`, repo AI) — cần Hiếu quyết |
+| 2026-11-10 | FR-22 prompt `assistant_router_v2` (AI PR #22) đã merge + deploy Azure: chạy thử chỉ bước chọn công cụ với Gemini thật **27/27** (gồm "Tôi hay trễ việc gì?" → `estimation_habits`, `smalltalk help`, `unsupported`). **Chưa** chạy lại trên emulator (token đăng nhập bị thu hồi sau lần làm mới bị timeout khi Backend khởi động nguội) và **chưa** quay video. Bước 5: `flutter analyze` sạch, `flutter test` 65 xanh; mở PR vào `main` | Hiếu chốt: bỏ qua chạy lại T4 + video, mở PR luôn |
