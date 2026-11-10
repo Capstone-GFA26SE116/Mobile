@@ -72,3 +72,4 @@ node_modules/
 
 # Avatar demo video (attach to the PR / report instead of committing)
 docs/avatar/demo.mp4
+docs/avatar/demo-agent.webm
