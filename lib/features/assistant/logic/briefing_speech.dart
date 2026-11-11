@@ -1,6 +1,6 @@
 import '../models/briefing.dart';
 
-/// Builds the sentence the avatar reads for a briefing (plan section 2, "Câu đọc").
+/// Builds the sentence the avatar reads for a briefing (plan section 2, "Read aloud").
 class BriefingSpeech {
   static const int maxWords = 60;
   static const String emptyDay =

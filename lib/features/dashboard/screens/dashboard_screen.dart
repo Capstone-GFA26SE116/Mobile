@@ -314,7 +314,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         heroTag: 'assistant-fab',
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
-        tooltip: 'Trợ lý',
+        tooltip: 'AI Assistant',
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const AssistantScreen()),
         ),
@@ -340,7 +340,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _buildWeeklyDayStrip(),
                 const SizedBox(height: 18),
 
-                // 3. PERSONAL WORK RHYTHM & INSIGHTS (Thống kê bản thân trong công việc)
+                // 3. PERSONAL WORK RHYTHM & INSIGHTS (Personal Work Statistics)
                 _buildPersonalWorkInsights(
                   totalSlots: totalSlots,
                   plannedMinutes: totalPlannedMinutes,

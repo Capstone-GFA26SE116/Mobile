@@ -41,29 +41,10 @@ class _CopilotScreenState extends State<CopilotScreen> {
   bool _isTyping = false;
   final Set<String> _appliedDraftIds = {};
 
-  // Adaptive language state: dynamically follows user's input/prompts
+  // UI Language mode: English
   bool _isVietnameseMode = false;
 
-  bool _detectVietnamese(String text) {
-    if (text.isEmpty) return false;
-    final viRegex = RegExp(
-      r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]',
-      caseSensitive: false,
-    );
-    if (viRegex.hasMatch(text)) return true;
-
-    final viKeywords = [
-      'kế hoạch', 'phân rã', 'dự án', 'công việc', 'thời gian',
-      'giúp', 'cho', 'tôi', 'bạn', 'hãy', 'làm', 'và', 'của',
-      'trong', 'mục tiêu', 'tính năng', 'thêm', 'sửa', 'xóa', 'ứng dụng',
-      'mình', 'nhé', 'xem qua', 'todolist', 'lập trình'
-    ];
-    final lower = text.toLowerCase();
-    for (final w in viKeywords) {
-      if (lower.contains(w)) return true;
-    }
-    return false;
-  }
+  bool _detectVietnamese(String text) => false;
 
   List<String> get _quickPrompts => _isVietnameseMode
       ? [

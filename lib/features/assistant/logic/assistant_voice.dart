@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 /// Vietnamese text-to-speech for the assistant. Reports speaking state through [onSpeakingChanged]
-/// so the avatar's mouth follows the voice (plan section 2, step 4 of "Luồng một lần nói").
+/// so the avatar's mouth follows the voice (plan section 2, step 4 of "Single-turn voice flow").
 class AssistantVoice {
   static const String language = 'vi-VN';
   static const String noVietnameseVoice = 'Máy chưa có giọng tiếng Việt';

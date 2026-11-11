@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../auth/screens/login_screen.dart';
 import '../data/profile_repository.dart';
 import '../models/profile_models.dart';
+import '../widgets/subscription_plans_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -252,6 +253,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _openSubscriptionPlans() async {
+    if (_profile == null) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SubscriptionPlansSheet(
+        currentPlanName: _profile!.planName,
+        onPlanPurchased: () {
+          _loadProfile();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -427,7 +443,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // 2. Subscription Information Card (Clean, Read-only on Mobile)
+                // 2. Subscription Information Card (Connected to PayOS & Backend)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -456,7 +472,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.primary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
@@ -473,7 +489,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -484,11 +500,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
-                            Icon(Icons.info_outline, size: 16, color: AppColors.textMuted),
+                            Icon(Icons.bolt_rounded, size: 16, color: AppColors.primary),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Subscription plans, invoices, and payment methods are securely managed on the Metanoia Web platform.',
+                                'Upgrade your subscription to unlock full AI Copilot planning, automated schedule optimization, and unlimited projects.',
                                 style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
@@ -497,6 +513,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _openSubscriptionPlans,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.onPrimary,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
+                          ),
+                          icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                          label: const Text(
+                            'View Plans & Upgrade (PayOS)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
                         ),
                       ),
                     ],

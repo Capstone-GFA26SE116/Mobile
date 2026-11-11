@@ -82,6 +82,7 @@ class ProfileRepository {
         if (list.isNotEmpty) {
           return list
               .map((e) => SubscriptionPlanItem.fromJson(e as Map<String, dynamic>))
+              .where((p) => p.isActive)
               .toList();
         }
       }
@@ -149,6 +150,21 @@ class ProfileRepository {
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Payment error: $msg');
+    }
+  }
+
+  Future<PaymentSyncResultModel> syncPayment(String paymentId) async {
+    try {
+      final response = await _apiClient.dio.post(
+        ApiEndpoints.paymentSync(paymentId),
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        return PaymentSyncResultModel.fromJson(response.data as Map<String, dynamic>);
+      }
+      throw Exception('Failed to synchronize payment state');
+    } on DioException catch (e) {
+      final msg = ApiClient.extractErrorMessage(e);
+      throw Exception('Payment sync error: $msg');
     }
   }
 

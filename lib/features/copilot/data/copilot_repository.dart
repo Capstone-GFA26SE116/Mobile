@@ -238,108 +238,72 @@ class CopilotRepository {
     );
 
     final lower = message.toLowerCase();
-    final viRegex = RegExp(
-      r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]',
-      caseSensitive: false,
-    );
-    final isVi = viRegex.hasMatch(message) ||
-        lower.contains('kế hoạch') ||
-        lower.contains('phân rã') ||
-        lower.contains('mục tiêu') ||
-        lower.contains('dự án') ||
-        lower.contains('giúp') ||
-        lower.contains('tôi') ||
-        lower.contains('bạn');
 
     final bool wantsDraft = lower.contains('brief') ||
         lower.contains('plan') ||
         lower.contains('milestone') ||
         lower.contains('break') ||
-        lower.contains('kế hoạch') ||
-        lower.contains('phân rã') ||
-        lower.contains('mục tiêu') ||
-        lower.contains('dự án');
+        lower.contains('task') ||
+        lower.contains('project') ||
+        lower.contains('decompose');
 
     if (wantsDraft) {
       final aiMsg = ProjectChatMessage(
         id: 'msg_${now.millisecondsSinceEpoch}',
         role: 'assistant',
         kind: 'draft',
-        content: isVi
-            ? 'Tôi đã phân tích bản mô tả dự án và đề xuất các mốc milestone, phân bổ task theo từng domain và hiệu chỉnh thời gian dự phòng theo dữ liệu velocity:'
-            : 'I have analyzed your project brief and synthesized the optimal delivery milestones, domain task allocations, and adjusted workload buffer based on past velocity patterns:',
+        content: 'I have analyzed your project brief and synthesized the optimal delivery milestones, domain task allocations, and adjusted workload buffer based on past velocity patterns:',
         createdAt: now.add(const Duration(seconds: 1)),
         draft: ProjectDraft(
           messageId: 'draft_${now.millisecondsSinceEpoch}',
           milestones: [
             DraftMilestoneItem(
               key: 'm1',
-              title: isVi
-                  ? 'Giai đoạn 1: Kiến trúc & Data Contract'
-                  : 'Phase 1: Architecture & Data Contract',
+              title: 'Phase 1: Architecture & Data Contract',
               deadline: now.add(const Duration(days: 7)).toIso8601String().split('T').first,
               tasks: [
                 DraftTaskItem(
                   key: 't1_1',
-                  title: isVi
-                      ? 'Định nghĩa Domain Schema & tài liệu OpenAPI'
-                      : 'Define domain schema & OpenAPI spec',
+                  title: 'Define domain schema & OpenAPI spec',
                   domain: DraftDomain(id: 'dom_be', name: 'Backend'),
                   estimatedMinutes: 90,
-                  reason: isVi ? 'Nền tảng cho tích hợp API' : 'Foundation for API integration',
+                  reason: 'Foundation for API integration',
                 ),
                 DraftTaskItem(
                   key: 't1_2',
-                  title: isVi
-                      ? 'Thiết lập State Container & Repositories cho Mobile'
-                      : 'Setup Mobile state container & repositories',
+                  title: 'Setup Mobile state container & repositories',
                   domain: DraftDomain(id: 'dom_fe', name: 'Mobile'),
                   estimatedMinutes: 120,
-                  reason: isVi ? 'Đảm bảo quản lý state tin cậy' : 'Ensures reliable client orchestration',
+                  reason: 'Ensures reliable client orchestration',
                 ),
               ],
             ),
             DraftMilestoneItem(
               key: 'm2',
-              title: isVi
-                  ? 'Giai đoạn 2: Tính năng cốt lõi & Tích hợp'
-                  : 'Phase 2: Core Business Logic & Integration',
+              title: 'Phase 2: Core Business Logic & Integration',
               deadline: now.add(const Duration(days: 14)).toIso8601String().split('T').first,
               tasks: [
                 DraftTaskItem(
                   key: 't2_1',
-                  title: isVi
-                      ? 'Tích hợp luồng nhắn tin Project Chat Copilot'
-                      : 'Implement Project Chat Copilot messaging pipeline',
+                  title: 'Implement Project Chat Copilot messaging pipeline',
                   domain: DraftDomain(id: 'dom_ai', name: 'AI & Data'),
                   estimatedMinutes: 180,
-                  reason: isVi
-                      ? 'Kết nối suy luận thời gian thực với ứng dụng'
-                      : 'Connects real-time reasoning with mobile clients',
+                  reason: 'Connects real-time reasoning with mobile clients',
                 ),
                 DraftTaskItem(
                   key: 't2_2',
-                  title: isVi
-                      ? 'Đồng bộ Milestone & phục hồi lỗi kết nối'
-                      : 'End-to-end milestone sync & error recovery',
+                  title: 'End-to-end milestone sync & error recovery',
                   domain: DraftDomain(id: 'dom_full', name: 'Fullstack'),
                   estimatedMinutes: 150,
-                  reason: isVi
-                      ? 'Đảm bảo đồng bộ mượt mà khi mạng yếu'
-                      : 'Guarantees reliable sync under network disruption',
+                  reason: 'Guarantees reliable sync under network disruption',
                 ),
               ],
             ),
           ],
-          reminders: isVi
-              ? [
-                  'Cần xác nhận thời hạn các mốc milestone với các bên liên quan',
-                  'Thực hiện kiểm thử hợp đồng liên domain trước khi sang Phase 2',
-                ]
-              : [
-                  'Fixed milestone deadline alignment required with stakeholders',
-                  'Conduct cross-domain contract verification prior to Phase 2 launch',
-                ],
+          reminders: [
+            'Fixed milestone deadline alignment required with stakeholders',
+            'Conduct cross-domain contract verification prior to Phase 2 launch',
+          ],
           numbers: DraftNumbers(
             byDomain: [
               DomainNumbers(domain: 'Mobile', estimatedMinutes: 120, adjustedMinutes: 160),
@@ -351,9 +315,9 @@ class CopilotRepository {
             daysLeft: 14,
             adjustedIsHint: false,
           ),
-          warnings: isVi
-              ? ['Tiến độ Phase 1 khá gấp: khuyến nghị ưu tiên chốt Data Contract trước']
-              : ['Tight deadline for Phase 1: consider delegating data contracts first'],
+          warnings: [
+            'Tight deadline for Phase 1: consider delegating data contracts first',
+          ],
         ),
       );
 
@@ -368,9 +332,7 @@ class CopilotRepository {
       id: 'msg_${now.millisecondsSinceEpoch}',
       role: 'assistant',
       kind: 'question',
-      content: isVi
-          ? 'Đã hiểu! Để lập kế hoạch chính xác cho dự án này, các mục tiêu nghiệp vụ chính và thời hạn bàn giao dự kiến cho đợt phát hành tới là gì?'
-          : 'Understood! To structure this project accurately, what are the primary business deliverables and target delivery dates for the upcoming release?',
+      content: 'Understood! To structure this project accurately, what are the primary business deliverables and target delivery dates for the upcoming release?',
       createdAt: now.add(const Duration(seconds: 1)),
     );
 
