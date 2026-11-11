@@ -55,6 +55,7 @@ class ApiEndpoints {
 
   // AI Service endpoints (Port 8000)
   static const String aiSchedulePropose = '/schedule/propose';
+  static const String aiScheduleOverrun = '/schedule/overrun'; // FR-16b
   static const String aiBriefingToday = '/briefing/today';
   static const String aiAssistantTurn = '/assistant/turn';
   static String aiTaskChat(String taskId) => '/chat/tasks/$taskId';
