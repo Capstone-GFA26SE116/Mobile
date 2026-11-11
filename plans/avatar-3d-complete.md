@@ -1,6 +1,6 @@
 # Hoàn tất trợ lý 3D (MVP) — chạy 1 mạch tới PR
 
-Trạng thái: Đã duyệt · Branch: `feature/avatar-3d` · Cập nhật: 2026-10-29
+Trạng thái: Xong (PR #1 đã merge 2026-10-29) · Branch: `feature/avatar-3d` · Cập nhật: 2026-10-29
 
 <!-- Viết trên Claude web (2026-10-29). Thay cho plans/avatar-3d-finish.md (đánh dấu "Thay bởi avatar-3d-complete.md" ở đầu file đó).
 Plan gốc vẫn là plans/avatar-3d-mvp.md (AC, thiết kế, test, nhật ký).
@@ -73,7 +73,7 @@ agent nhiều lệnh (giai đoạn B: `avatar-3d-agent.md` + `FR-22.md` repo AI)
     **Làm gì** (3 dòng) · **Cách chạy thử** (lệnh màn xem thử + `DEV_JWT` / `DEV_UTTERANCE` / `DEV_AVATAR_TOUR`) ·
     **Ảnh** (link `docs/avatar/screenshots/`) · **Thư viện mới** (`flutter_inappwebview` beta + lý do, `flutter_tts`, `speech_to_text`) ·
     **Quyền mới** (micro, nhận giọng nói) · **Theo dõi** (#9, Google Sign-In iOS, VRM) · **Không đổi** (các màn cũ; FAB có `heroTag`).
-- [ ] **13. DỪNG — báo Hiếu:** link PR, đường dẫn video, 6 ảnh, bảng D1–D6 (đạt / chưa), việc còn lại cho người.
+- [x] **13. DỪNG — báo Hiếu:** link PR, đường dẫn video, 6 ảnh, bảng D1–D6 (đạt / chưa), việc còn lại cho người.
 
 ## 4. Prompt dán vào Claude Code
 
