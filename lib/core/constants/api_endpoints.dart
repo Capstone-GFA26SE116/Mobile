@@ -2,6 +2,7 @@ class ApiEndpoints {
   // Auth & Profile
   static const String loginGoogle = '/api/Auth/google';
   static const String refreshToken = '/api/Auth/refresh';
+  static const String logout = '/api/Auth/logout';
   static const String me = '/api/me';
   static const String meProfile = '/api/me/profile';
   static const String meSettings = '/api/me/settings';
@@ -54,7 +55,9 @@ class ApiEndpoints {
 
   // AI Service endpoints (Port 8000)
   static const String aiSchedulePropose = '/schedule/propose';
+  static const String aiScheduleOverrun = '/schedule/overrun'; // FR-16b
   static const String aiBriefingToday = '/briefing/today';
+  static const String aiAssistantTurn = '/assistant/turn';
   static String aiTaskChat(String taskId) => '/chat/tasks/$taskId';
   static String aiTaskChatMessages(String taskId) => '/chat/tasks/$taskId/messages';
   static String aiTaskChatApply(String taskId) => '/chat/tasks/$taskId/apply';
