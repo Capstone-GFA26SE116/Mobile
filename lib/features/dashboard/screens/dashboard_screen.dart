@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../assistant/screens/assistant_screen.dart';
+import '../data/briefing_repository.dart';
 import '../data/dashboard_repository.dart';
 import '../models/dashboard_models.dart';
+import '../widgets/today_briefing_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onNavigateToSchedule;
@@ -19,6 +21,9 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final DashboardRepository _repository = DashboardRepository();
+  // W6-02: built lazily so tests and screens without the card never need the AI config.
+  late final BriefingRepository _briefingRepository = BriefingRepository.create();
+  int _briefingRefresh = 0;
 
   UserProfileModel? _profile;
   List<FocusSlotItem> _focusSlots = [];
@@ -56,6 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadAllData() async {
     setState(() {
+      _briefingRefresh++; // the AI Focus card reloads too
       _isLoading = true;
       _slotsLoading = true;
       _slotsError = null;
@@ -338,6 +344,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 // 2. WEEKLY CALENDAR STRIP (Temporal Context)
                 _buildWeeklyDayStrip(),
+                const SizedBox(height: 18),
+
+                // 2b. AI FOCUS TODAY (W6-02): what to do first and why
+                TodayBriefingCard(
+                  repository: _briefingRepository,
+                  refreshKey: _briefingRefresh,
+                ),
                 const SizedBox(height: 18),
 
                 // 3. PERSONAL WORK RHYTHM & INSIGHTS (Personal Work Statistics)
