@@ -126,6 +126,8 @@ class FocusSlotTag {
 
 class FocusSlotItem {
   final String id;
+  final String? taskId;
+  final String? subTaskId;
   final String start;
   final String end;
   final String title;
@@ -139,6 +141,8 @@ class FocusSlotItem {
 
   const FocusSlotItem({
     required this.id,
+    this.taskId,
+    this.subTaskId,
     required this.start,
     required this.end,
     required this.title,
@@ -154,9 +158,13 @@ class FocusSlotItem {
   FocusSlotItem copyWith({
     String? status,
     int? nowMs,
+    String? taskId,
+    String? subTaskId,
   }) {
     return FocusSlotItem(
       id: id,
+      taskId: taskId ?? this.taskId,
+      subTaskId: subTaskId ?? this.subTaskId,
       start: start,
       end: end,
       title: title,

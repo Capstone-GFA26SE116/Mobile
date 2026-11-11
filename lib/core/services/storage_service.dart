@@ -58,6 +58,15 @@ class StorageService {
   Future<String?> getEmail() async => await _storage.read(key: _keyEmail);
   Future<String?> getFullName() async => await _storage.read(key: _keyFullName);
 
+  Future<void> saveCustomValue(String key, String value) async =>
+      await _storage.write(key: key, value: value);
+
+  Future<String?> getCustomValue(String key) async =>
+      await _storage.read(key: key);
+
+  Future<void> deleteCustomValue(String key) async =>
+      await _storage.delete(key: key);
+
   // Clear all cached credentials on logout
   Future<void> clearAuth() async {
     await _storage.delete(key: _keyAccessToken);

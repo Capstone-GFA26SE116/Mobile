@@ -2,6 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../assistant/screens/assistant_screen.dart';
+import '../../focus/logic/focus_session_controller.dart';
+import '../../focus/screens/focus_screen.dart';
+import '../../notifications/logic/notification_controller.dart';
+import '../../notifications/screens/notifications_screen.dart';
 import '../data/dashboard_repository.dart';
 import '../models/dashboard_models.dart';
 
@@ -129,6 +133,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '$dayName, $monthName ${now.day}';
   }
 
+  Future<void> _handleStartFocus(FocusSlotItem slot) async {
+    final controller = FocusSessionController();
+    final plannedMinutes = ((slot.endMs - slot.startMs) / 60000).round();
+
+    if (controller.isRunning &&
+        controller.currentSession?.scheduleSlotId == slot.id) {
+      Navigator.pop(context);
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const FocusScreen()),
+      );
+      return;
+    }
+
+    try {
+      Navigator.pop(context);
+      final taskId = (slot.taskId != null && slot.taskId!.isNotEmpty)
+          ? slot.taskId!
+          : slot.id;
+
+      await controller.startSession(
+        taskId: taskId,
+        subTaskId: slot.subTaskId,
+        scheduleSlotId: slot.id.isNotEmpty && !slot.id.startsWith('task_')
+            ? slot.id
+            : null,
+        plannedDurationMinutes: plannedMinutes > 0 ? plannedMinutes : 30,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const FocusScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: const Color(0xFF381A1A),
+        ),
+      );
+    }
+  }
+
   void _showSlotDetails(FocusSlotItem slot) {
     showModalBottomSheet(
       context: context,
@@ -224,46 +271,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 20),
                 ],
 
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.surfaceBorder),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                    if (slot.status != 'done') ...[
+                      ElevatedButton.icon(
+                        onPressed: () => _handleStartFocus(slot),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: const Color(0xFF101010),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: const Text(
-                          'Close',
-                          style: TextStyle(color: AppColors.textSecondary),
+                        icon: const Icon(Icons.play_arrow, size: 20),
+                        label: Text(
+                          FocusSessionController().isRunning &&
+                                  FocusSessionController()
+                                          .currentSession
+                                          ?.scheduleSlotId ==
+                                      slot.id
+                              ? 'In Progress (Open Timer)'
+                              : 'Start Focus Session',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                    ),
-                    if (widget.onNavigateToSchedule != null) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            widget.onNavigateToSchedule!();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                      const SizedBox(height: 10),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.surfaceBorder),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Close',
+                              style: TextStyle(color: AppColors.textSecondary),
                             ),
                           ),
-                          child: const Text(
-                            'View in Schedule',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
                         ),
-                      ),
-                    ],
+                        if (widget.onNavigateToSchedule != null) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                widget.onNavigateToSchedule!();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.surfaceBorder),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: const Text(
+                                'View in Schedule',
+                                style: TextStyle(color: AppColors.textPrimary),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ],
@@ -377,40 +457,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 1. HEADER
   // ===========================================================================
   Widget _buildHeader(String firstName, int totalSlots) {
-    return Column(
+    final notifCtrl = NotificationController();
+
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _getFormattedDate().toUpperCase(),
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _getFormattedDate().toUpperCase(),
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Text(
+                'Hello, $firstName 👋',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 3),
+
+              Text(
+                totalSlots > 0
+                    ? 'You have $totalSlots scheduled focus blocks for today.'
+                    : 'Here is your personal work rhythm and focus overview.',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-
-        Text(
-          'Hello, $firstName 👋',
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 3),
-
-        Text(
-          totalSlots > 0
-              ? 'You have $totalSlots scheduled focus blocks for today.'
-              : 'Here is your personal work rhythm and focus overview.',
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 13,
-            height: 1.4,
-          ),
+        AnimatedBuilder(
+          animation: notifCtrl,
+          builder: (context, _) {
+            final unread = notifCtrl.unreadCount;
+            return Container(
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.surfaceBorder),
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined,
+                        color: AppColors.textPrimary, size: 22),
+                    tooltip: 'Notifications',
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const NotificationsScreen()),
+                      );
+                    },
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          unread > 9 ? '9+' : unread.toString(),
+                          style: const TextStyle(
+                            color: Color(0xFF101010),
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
