@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../dashboard/models/dashboard_models.dart';
+import '../../focus/logic/focus_session_controller.dart';
+import '../../focus/screens/focus_screen.dart';
 import '../data/overrun_repository.dart';
 import '../data/schedule_repository.dart';
 import '../models/schedule_models.dart';
@@ -381,6 +383,49 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _runningStatuses.contains(slot.status) &&
       DateTime.now().isAfter(slot.start);
 
+  Future<void> _handleStartFocus(CalendarSlotModel slot) async {
+    final controller = FocusSessionController();
+    final durMinutes = slot.end.difference(slot.start).inMinutes;
+
+    if (controller.isRunning &&
+        controller.currentSession?.scheduleSlotId == slot.id) {
+      Navigator.pop(context);
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const FocusScreen()),
+      );
+      return;
+    }
+
+    try {
+      Navigator.pop(context);
+      final taskId = (slot.taskId != null && slot.taskId!.isNotEmpty)
+          ? slot.taskId!
+          : slot.id;
+
+      await controller.startSession(
+        taskId: taskId,
+        subTaskId: slot.subTaskId,
+        scheduleSlotId: slot.id.isNotEmpty && !slot.id.startsWith('task_')
+            ? slot.id
+            : null,
+        plannedDurationMinutes: durMinutes > 0 ? durMinutes : 30,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const FocusScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: const Color(0xFF381A1A),
+        ),
+      );
+    }
+  }
+
   Future<void> _handleNeedMoreTime(CalendarSlotModel slot) async {
     final applied = await showModalBottomSheet<bool>(
       context: context,
@@ -615,6 +660,40 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   'Override',
                   'Manually scheduled by user',
                 ),
+
+              if (slot.source.toLowerCase() == 'slot' &&
+                  (slot.status ?? '').toLowerCase() != 'done' &&
+                  (slot.status ?? '').toLowerCase() != 'cancelled') ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00D992),
+                      foregroundColor: const Color(0xFF101010),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () => _handleStartFocus(slot),
+                    icon: const Icon(Icons.play_arrow, size: 20),
+                    label: Text(
+                      FocusSessionController().isRunning &&
+                              FocusSessionController()
+                                      .currentSession
+                                      ?.scheduleSlotId ==
+                                  slot.id
+                          ? 'In Progress (Open Timer)'
+                          : 'Start Focus Session',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
 
               if (_canAskForMoreTime(slot)) ...[
                 const SizedBox(height: 20),

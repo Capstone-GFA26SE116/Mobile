@@ -53,6 +53,25 @@ class ApiEndpoints {
   static const String paymentsCheckout = '/api/payments/checkout';
   static String paymentSync(String paymentId) => '/api/payments/$paymentId/sync';
 
+  // Focus Session (Timer & Real Time Tracking)
+  static const String focusStart = '/api/focus/start';
+  static String focusStop(String sessionId) => '/api/focus/$sessionId/stop';
+  static const String focusCurrent = '/api/focus/current';
+  static const String focusPendingConfirmation = '/api/focus/pending-confirmation';
+  static String focusConfirm(String sessionId) => '/api/focus/$sessionId/confirm';
+  static const String focusSelfReport = '/api/focus/self-report';
+  static String focusTimeSummary(String slotId) => '/api/focus/$slotId/time-summary';
+  static const String focusTracks = '/api/focus-tracks';
+
+  // Notifications
+  static const String notifications = '/api/notifications';
+  static String notificationRead(String id) => '/api/notifications/$id/read';
+  static const String notificationReadAll = '/api/notifications/read-all';
+  static const String notificationVapidPublicKey = '/api/notifications/vapid-public-key';
+  static const String notificationSubscribe = '/api/notifications/subscribe';
+  static const String notificationUnsubscribe = '/api/notifications/unsubscribe';
+  static const String notificationHub = '/hubs/notifications';
+
   // AI Service endpoints (Port 8000)
   static const String aiSchedulePropose = '/schedule/propose';
   static const String aiScheduleOverrun = '/schedule/overrun'; // FR-16b

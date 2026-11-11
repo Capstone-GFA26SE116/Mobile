@@ -147,6 +147,8 @@ class DashboardRepository {
 
       return FocusSlotItem(
         id: item.id,
+        taskId: item.taskId,
+        subTaskId: item.subTaskId,
         start: startStr,
         end: endStr,
         title: title,
