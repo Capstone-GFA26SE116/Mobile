@@ -9,12 +9,8 @@ import '../widgets/assistant_prompts.dart';
 import '../widgets/avatar_view.dart';
 
 /// Voice assistant: hold the mic, speak, and the avatar answers aloud
-<<<<<<< HEAD
-/// (plan section 2, "Single-turn voice conversation flow").
-=======
-/// (MVP plan section 2, "Luồng một lần nói"); answers come from `/assistant/turn`
-/// through [AssistantController] (agent plan section 2).
->>>>>>> e23899fb3faaa6011be9d1be9cf3380fa506919f
+/// (MVP plan section 2, "Single-turn voice conversation flow"); answers come from
+/// `/assistant/turn` through [AssistantController] (agent plan section 2).
 class AssistantScreen extends StatefulWidget {
   /// Debug only (C3): said automatically 2 s after the avatar is ready, skipping the mic.
   /// Several sentences separated by `|` are said one after another.
@@ -224,11 +220,8 @@ class _AssistantScreenState extends State<AssistantScreen> {
             const Padding(
               padding: EdgeInsets.only(top: 8),
               child: Text(
-<<<<<<< HEAD
-                'Checking today\'s schedule…',
-=======
-                'Đang tìm câu trả lời…',
->>>>>>> e23899fb3faaa6011be9d1be9cf3380fa506919f
+                // Any of the read tools may be running, not only today's schedule.
+                'Finding an answer…',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
             ),

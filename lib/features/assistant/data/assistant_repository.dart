@@ -20,7 +20,9 @@ class AssistantException implements Exception {
   String get message => switch (kind) {
         AssistantErrorKind.unauthorized => 'Phiên đăng nhập hết hạn, bạn đăng nhập lại nhé.',
         AssistantErrorKind.quotaExceeded =>
-          'Bạn đã hết lượt AI của kỳ này. Mình vẫn đọc được việc hôm nay nếu bạn hỏi “Hôm nay tôi nên làm gì?”.',
+          // FR-22b: familiar questions are answered without using a call, so a 429 means
+          // this sentence needed the LLM. Point to questions that still work.
+          'Câu này cần dùng AI mà bạn đã hết lượt của kỳ này. Bạn thử hỏi kiểu “Hôm nay tôi nên làm gì?” hay “Chiều nay tôi có lịch gì?” nhé.',
         AssistantErrorKind.noPlan =>
           'Bạn chưa có gói dịch vụ đang dùng nên mình chưa trả lời được câu này.',
         AssistantErrorKind.network ||
