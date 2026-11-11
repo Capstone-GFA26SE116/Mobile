@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../dashboard/models/dashboard_models.dart';
+import '../data/overrun_repository.dart';
 import '../data/schedule_repository.dart';
 import '../models/schedule_models.dart';
 import 'ai_proposal_sheet.dart';
+import 'overrun_sheet.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({super.key});
@@ -367,6 +369,34 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     }
   }
 
+  /// FR-16b: a Flexible slot that already started and is still on the calendar.
+  static const Set<String> _runningStatuses = {'Approved', 'Due', 'InProgress', 'Overrun'};
+
+  bool _canAskForMoreTime(CalendarSlotModel slot) =>
+      slot.source.toLowerCase() == 'slot' &&
+      slot.id.isNotEmpty &&
+      !slot.id.startsWith('task_') &&
+      !slot.id.startsWith('deadline_') &&
+      (slot.taskType ?? 'Flexible') != 'Fixed' &&
+      _runningStatuses.contains(slot.status) &&
+      DateTime.now().isAfter(slot.start);
+
+  Future<void> _handleNeedMoreTime(CalendarSlotModel slot) async {
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => OverrunSheet(
+        slotId: slot.id,
+        slotTitle: (slot.subTaskTitle != null && slot.subTaskTitle!.isNotEmpty)
+            ? slot.subTaskTitle!
+            : slot.title,
+        repository: OverrunRepository.create(),
+      ),
+    );
+    if (applied == true) _loadSchedule();
+  }
+
   void _showEventDetailSheet(CalendarSlotModel slot) {
     final durMinutes = slot.end.difference(slot.start).inMinutes;
     final durString = slot.isAllDay ? 'All day' : (durMinutes >= 60 ? '${(durMinutes / 60.0).toStringAsFixed(1)}h' : '${durMinutes}m');
@@ -586,6 +616,27 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   'Manually scheduled by user',
                 ),
 
+              if (_canAskForMoreTime(slot)) ...[
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00D992).withValues(alpha: 0.15),
+                      foregroundColor: const Color(0xFF00D992),
+                      side: const BorderSide(color: Color(0xFF00D992)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _handleNeedMoreTime(slot);
+                    },
+                    icon: const Icon(Icons.more_time, size: 18),
+                    label: const Text('Need more time', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Row(
                 children: [

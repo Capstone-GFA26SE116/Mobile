@@ -197,6 +197,16 @@ class ProfileRepository {
   }
 
   Future<void> logout() async {
+    // W1-02: revoke the refresh token on the Backend; the local session is cleared either way.
+    final refreshToken = await _storageService.getRefreshToken();
+    if (refreshToken != null && !refreshToken.startsWith('demo_')) {
+      try {
+        await _apiClient.dio.post(
+          ApiEndpoints.logout,
+          data: {'refreshToken': refreshToken},
+        );
+      } catch (_) {}
+    }
     await _storageService.clearTokens();
     try {
       await GoogleSignIn().signOut();

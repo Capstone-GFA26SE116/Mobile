@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/constants/app_colors.dart';
@@ -55,9 +56,11 @@ class _AuthGateState extends State<AuthGate> {
         }
         return;
       }
-    } catch (e) {
-      // 401 Unauthorized: token expired -> clear tokens and route to Login
-      if (e.toString().contains('401')) {
+    } on DioException catch (e) {
+      // ApiClient already renewed the session on the first 401. A 401 here means the refresh
+      // token was refused (or the retry was refused too) -> clear tokens and route to Login.
+      // A timeout while renewing is not a 401: the session is kept for the next start.
+      if (e.response?.statusCode == 401) {
         await _storageService.clearTokens();
         if (mounted) {
           setState(() {
@@ -74,6 +77,8 @@ class _AuthGateState extends State<AuthGate> {
         });
       }
       return;
+    } catch (_) {
+      // Unexpected response: open the app, as before.
     }
 
     if (mounted) {

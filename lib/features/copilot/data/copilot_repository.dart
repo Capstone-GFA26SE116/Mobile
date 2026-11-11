@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/token_refresher.dart';
 import '../../../core/services/storage_service.dart';
 import '../models/copilot_models.dart';
 
@@ -41,6 +42,7 @@ class CopilotRepository {
         },
       ),
     );
+    _aiDio.interceptors.add(RefreshOnUnauthorized(_aiDio));
   }
 
   Future<List<CopilotMessage>> getTaskChat(String taskId) async {

@@ -29,6 +29,22 @@ void main() {
       expect(IntentRouter.route(''), AssistantIntent.unknown);
     });
 
+    test('leaves questions for other assistant tools alone', () {
+      // Found in the T4 run: these matched "viec gi" / "hom nay" and read the briefing.
+      expect(IntentRouter.route('Tôi đang bấm giờ việc gì vậy?'), AssistantIntent.unknown);
+      expect(IntentRouter.route('Tôi hay trễ việc gì?'), AssistantIntent.unknown);
+      expect(IntentRouter.route('Chiều nay có việc gì?'), AssistantIntent.unknown);
+      expect(IntentRouter.route('Hôm nay tôi còn bao nhiêu lượt AI?'), AssistantIntent.unknown);
+      expect(IntentRouter.route('Dự án nào cần làm gì?'), AssistantIntent.unknown);
+      expect(IntentRouter.route('What should I do tomorrow?'), AssistantIntent.unknown);
+    });
+
+    test('still matches the briefing question with "trên"/"trước" words nearby', () {
+      // Whole-word check: "tre" must not hit "tren" or "truoc".
+      expect(IntentRouter.route('Hôm nay trên lịch tôi nên làm gì?'), AssistantIntent.briefing);
+      expect(IntentRouter.route('Việc gì làm trước hôm nay?'), AssistantIntent.briefing);
+    });
+
     test('matches whole words only', () {
       // "lam gia" (làm giả) must not match "lam gi".
       expect(IntentRouter.route('Đừng làm giả'), AssistantIntent.unknown);
