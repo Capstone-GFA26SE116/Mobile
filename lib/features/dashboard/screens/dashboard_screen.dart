@@ -1,21 +1,22 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../assistant/screens/assistant_screen.dart';
 import '../../focus/logic/focus_session_controller.dart';
 import '../../focus/screens/focus_screen.dart';
 import '../../notifications/logic/notification_controller.dart';
 import '../../notifications/screens/notifications_screen.dart';
+import '../data/briefing_repository.dart';
 import '../data/dashboard_repository.dart';
 import '../models/dashboard_models.dart';
+import '../widgets/today_briefing_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onNavigateToSchedule;
 
-  const DashboardScreen({
-    super.key,
-    this.onNavigateToSchedule,
-  });
+  const DashboardScreen({super.key, this.onNavigateToSchedule});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -23,6 +24,10 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final DashboardRepository _repository = DashboardRepository();
+  // W6-02: built lazily so tests and screens without the card never need the AI config.
+  late final BriefingRepository _briefingRepository =
+      BriefingRepository.create();
+  int _briefingRefresh = 0;
 
   UserProfileModel? _profile;
   List<FocusSlotItem> _focusSlots = [];
@@ -60,6 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadAllData() async {
     setState(() {
+      _briefingRefresh++; // the AI Focus card reloads too
       _isLoading = true;
       _slotsLoading = true;
       _slotsError = null;
@@ -122,11 +128,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _getFormattedDate() {
     final now = DateTime.now();
     const weekdays = [
-      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
     ];
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final dayName = weekdays[now.weekday - 1];
     final monthName = months[now.month - 1];
@@ -140,9 +162,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (controller.isRunning &&
         controller.currentSession?.scheduleSlotId == slot.id) {
       Navigator.pop(context);
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FocusScreen()),
-      );
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const FocusScreen()));
       return;
     }
 
@@ -162,9 +183,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
 
       if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FocusScreen()),
-      );
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const FocusScreen()));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -208,7 +228,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.schedule, size: 16, color: AppColors.accentGreen),
+                        const Icon(
+                          Icons.schedule,
+                          size: 16,
+                          color: AppColors.accentGreen,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           '${slot.start} - ${slot.end}',
@@ -251,7 +275,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     runSpacing: 6,
                     children: slot.tags.map((t) {
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.background,
                           borderRadius: BorderRadius.circular(6),
@@ -308,7 +335,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: AppColors.surfaceBorder),
+                              side: const BorderSide(
+                                color: AppColors.surfaceBorder,
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -329,8 +358,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 widget.onNavigateToSchedule!();
                               },
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.surfaceBorder),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: const BorderSide(
+                                  color: AppColors.surfaceBorder,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -395,9 +428,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
         tooltip: 'AI Assistant',
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AssistantScreen()),
-        ),
+        onPressed: () => Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const AssistantScreen())),
         child: const Icon(Icons.record_voice_over),
       ),
       body: SafeArea(
@@ -418,6 +450,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 // 2. WEEKLY CALENDAR STRIP (Temporal Context)
                 _buildWeeklyDayStrip(),
+                const SizedBox(height: 18),
+
+                // 2b. AI FOCUS TODAY (W6-02): what to do first and why
+                TodayBriefingCard(
+                  repository: _briefingRepository,
+                  refreshKey: _briefingRefresh,
+                ),
                 const SizedBox(height: 18),
 
                 // 3. PERSONAL WORK RHYTHM & INSIGHTS (Personal Work Statistics)
@@ -516,13 +555,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 clipBehavior: Clip.none,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.notifications_outlined,
-                        color: AppColors.textPrimary, size: 22),
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: AppColors.textPrimary,
+                      size: 22,
+                    ),
                     tooltip: 'Notifications',
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (_) => const NotificationsScreen()),
+                          builder: (_) => const NotificationsScreen(),
+                        ),
                       );
                     },
                   ),
@@ -561,9 +604,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildWeeklyDayStrip() {
     final now = DateTime.now();
     // Find Monday of current week
-    final monday = DateTime(now.year, now.month, now.day).subtract(
-      Duration(days: now.weekday - 1),
-    );
+    final monday = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
 
     const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -578,7 +623,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: List.generate(7, (index) {
           final date = monday.add(Duration(days: index));
-          final isToday = date.year == now.year &&
+          final isToday =
+              date.year == now.year &&
               date.month == now.month &&
               date.day == now.day;
 
@@ -602,7 +648,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: BoxShape.circle,
                   border: isToday
                       ? null
-                      : Border.all(color: AppColors.surfaceBorder.withValues(alpha: 0.5)),
+                      : Border.all(
+                          color: AppColors.surfaceBorder.withValues(alpha: 0.5),
+                        ),
                 ),
                 child: Text(
                   '${date.day}',
@@ -664,7 +712,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 iconColor: AppColors.accentGreen,
                 title: 'Planned Focus',
                 value: _formatDuration(plannedMinutes),
-                subtitle: totalSlots > 0 ? '$totalSlots blocks today' : 'No blocks set',
+                subtitle: totalSlots > 0
+                    ? '$totalSlots blocks today'
+                    : 'No blocks set',
               ),
             ),
             const SizedBox(width: 10),
@@ -765,7 +815,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: LinearProgressIndicator(
                 value: trailingProgress,
                 backgroundColor: AppColors.surfaceBorder,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  AppColors.primary,
+                ),
                 minHeight: 3,
               ),
             ),
@@ -774,10 +826,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           Text(
             subtitle,
-            style: const TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 10.5,
-            ),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -847,7 +896,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 36),
             alignment: Alignment.center,
-            child: const CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+            child: const CircularProgressIndicator(
+              color: AppColors.primary,
+              strokeWidth: 2,
+            ),
           )
         else if (_slotsError != null)
           Container(
@@ -855,21 +907,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: Colors.redAccent.withValues(alpha: 0.3),
+              ),
             ),
             child: Column(
               children: [
-                const Icon(Icons.error_outline, color: Colors.redAccent, size: 26),
+                const Icon(
+                  Icons.error_outline,
+                  color: Colors.redAccent,
+                  size: 26,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   _slotsError!,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: _loadAllData,
-                  child: const Text('Retry', style: TextStyle(color: AppColors.primary)),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(color: AppColors.primary),
+                  ),
                 ),
               ],
             ),
@@ -886,7 +950,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.event_available, color: AppColors.textMuted, size: 34),
+                const Icon(
+                  Icons.event_available,
+                  color: AppColors.textMuted,
+                  size: 34,
+                ),
                 const SizedBox(height: 10),
                 const Text(
                   'No focus blocks scheduled for today.',
@@ -910,14 +978,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 14),
                   ElevatedButton.icon(
                     onPressed: widget.onNavigateToSchedule,
-                    icon: const Icon(Icons.calendar_month, size: 15, color: Colors.white),
+                    icon: const Icon(
+                      Icons.calendar_month,
+                      size: 15,
+                      color: Colors.white,
+                    ),
                     label: const Text(
                       'Go to Schedule',
-                      style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 9,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -981,14 +1060,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
 
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       slot.start,
                       style: TextStyle(
-                        color: isRunning || isNext ? AppColors.accentGreen : AppColors.textPrimary,
+                        color: isRunning || isNext
+                            ? AppColors.accentGreen
+                            : AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
@@ -1009,7 +1093,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1024,14 +1111,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               bg = AppColors.primary.withValues(alpha: 0.15);
                               textCol = AppColors.primary;
                             } else if (t.tone == 'success') {
-                              bg = AppColors.accentGreen.withValues(alpha: 0.15);
+                              bg = AppColors.accentGreen.withValues(
+                                alpha: 0.15,
+                              );
                               textCol = AppColors.accentGreen;
                             } else if (t.tone == 'warning') {
                               bg = Colors.amber.withValues(alpha: 0.15);
                               textCol = Colors.amber;
                             }
                             return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: bg,
                                 borderRadius: BorderRadius.circular(4),
@@ -1053,10 +1145,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Text(
                         slot.title,
                         style: TextStyle(
-                          color: isDone ? AppColors.textMuted : AppColors.textPrimary,
+                          color: isDone
+                              ? AppColors.textMuted
+                              : AppColors.textPrimary,
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          decoration: isDone ? TextDecoration.lineThrough : null,
+                          decoration: isDone
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -1079,9 +1175,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.only(right: 12),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildStatusBadge(slot.status, remainLabel),
-                  ],
+                  children: [_buildStatusBadge(slot.status, remainLabel)],
                 ),
               ),
             ],
@@ -1114,7 +1208,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         decoration: BoxDecoration(
           color: AppColors.accentGreen.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.4)),
+          border: Border.all(
+            color: AppColors.accentGreen.withValues(alpha: 0.4),
+          ),
         ),
         child: Column(
           children: [
@@ -1155,7 +1251,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     } else {
-      return const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 18);
+      return const Icon(
+        Icons.chevron_right,
+        color: AppColors.textMuted,
+        size: 18,
+      );
     }
   }
 
@@ -1197,7 +1297,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: AppColors.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.lightbulb_outline, color: AppColors.primary, size: 18),
+            child: const Icon(
+              Icons.lightbulb_outline,
+              color: AppColors.primary,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
