@@ -11,6 +11,12 @@ class IntentRouter {
     'uu tien',
     'viec gi',
     'today',
+    'focus',
+    'tasks',
+    'schedule',
+    'plan',
+    'priority',
+    'briefing',
   ];
 
   static AssistantIntent route(String sentence) {

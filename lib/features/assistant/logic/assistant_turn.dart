@@ -12,7 +12,7 @@ class AssistantReply {
   const AssistantReply(this.text, this.emotion);
 }
 
-/// Decides the answer to one sentence (plan section 2, steps 2–3 of "Luồng một lần nói").
+/// Decides the answer to one sentence (plan section 2, steps 2–3 of "Single-turn voice flow").
 /// Used for both spoken sentences and the debug DEV_UTTERANCE, so both take the same path.
 class AssistantTurn {
   static const String notHeard =

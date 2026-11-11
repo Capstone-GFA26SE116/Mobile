@@ -8,7 +8,7 @@ import '../logic/assistant_voice.dart';
 import '../widgets/avatar_view.dart';
 
 /// Voice assistant: hold the mic, speak, and the avatar answers aloud
-/// (plan section 2, "Luồng một lần nói").
+/// (plan section 2, "Single-turn voice conversation flow").
 class AssistantScreen extends StatefulWidget {
   /// Debug only (C3): said automatically 2 s after the avatar is ready, skipping the mic.
   final String? devUtterance;
@@ -161,7 +161,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         title: const Text(
-          'Trợ lý',
+          'AI Assistant',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
         ),
       ),
@@ -189,7 +189,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
         children: [
           if (_listening && _heard.isEmpty)
             const Text(
-              'Đang nghe…',
+              'Listening…',
               style: TextStyle(color: AppColors.textMuted, fontSize: 15),
             )
           else if (_heard.isNotEmpty)
@@ -206,7 +206,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
             const Padding(
               padding: EdgeInsets.only(top: 8),
               child: Text(
-                'Đang xem lịch hôm nay…',
+                'Checking today\'s schedule…',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13),
               ),
             ),
@@ -252,7 +252,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            active ? 'Thả tay để gửi' : 'Giữ để nói',
+            active ? 'Release to send' : 'Hold to speak',
             style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 12,

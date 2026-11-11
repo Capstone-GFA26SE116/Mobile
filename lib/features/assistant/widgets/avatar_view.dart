@@ -63,7 +63,7 @@ class _AvatarViewState extends State<AvatarView> {
       await _server.start();
       if (mounted) setState(() => _serverReady = true);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Không khởi động được máy chủ nội bộ: $e');
+      if (mounted) setState(() => _error = 'Failed to start local asset server: $e');
     }
   }
 
@@ -118,7 +118,7 @@ class _AvatarViewState extends State<AvatarView> {
           },
           onReceivedError: (controller, request, error) {
             if (request.isForMainFrame ?? true) {
-              setState(() => _error = 'Không tải được nhân vật: ${error.description}');
+              setState(() => _error = 'Could not load 3D character: ${error.description}');
             }
           },
         ),
@@ -139,7 +139,7 @@ class _AvatarViewState extends State<AvatarView> {
         setState(() => _avatarReady = true);
         widget.onReady?.call();
       case 'error':
-        setState(() => _error = payload['message']?.toString() ?? 'Lỗi không xác định');
+        setState(() => _error = payload['message']?.toString() ?? 'Unknown avatar error');
     }
   }
 }

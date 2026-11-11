@@ -8,7 +8,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 enum ListenFailure { permissionDenied, unavailable }
 
 /// Hold-to-talk speech recognition in Vietnamese, on the device (plan section 2, step 1–2 of
-/// "Luồng một lần nói"). [start] on press, [finish] on release.
+/// "Single-turn voice flow"). [start] on press, [finish] on release.
 class AssistantListener {
   static const String localeId = 'vi_VN';
   static const String permissionDeniedMessage =

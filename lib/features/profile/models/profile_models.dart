@@ -61,6 +61,11 @@ class SubscriptionPlanItem {
   final String description;
   final List<String> features;
   final bool isPopular;
+  final int? durationDays;
+  final int? aiCallLimit;
+  final int? storageLimitMb;
+  final int? projectLimit;
+  final bool isActive;
 
   SubscriptionPlanItem({
     required this.id,
@@ -71,18 +76,79 @@ class SubscriptionPlanItem {
     required this.description,
     required this.features,
     this.isPopular = false,
+    this.durationDays,
+    this.aiCallLimit,
+    this.storageLimitMb,
+    this.projectLimit,
+    this.isActive = true,
   });
 
   factory SubscriptionPlanItem.fromJson(Map<String, dynamic> json) {
+    final rawFeatures = (json['features'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+
+    final price = (json['price'] as num?)?.toInt() ??
+        (json['priceVnd'] as num?)?.toInt() ??
+        0;
+    final durationDays = (json['durationDays'] as num?)?.toInt();
+    final aiLimit = (json['aiCallLimit'] as num?)?.toInt();
+    final storageMb = (json['storageLimitMb'] as num?)?.toInt() ?? 0;
+    final projLimit = (json['projectLimit'] as num?)?.toInt();
+    final name = json['name']?.toString() ?? 'Subscription Plan';
+    final isPopular = json['isPopular'] as bool? ??
+        name.toLowerCase().contains('pro') ||
+        (price > 0 && price < 300000);
+
+    // Auto-synthesize features if BE didn't supply a textual list
+    final features = List<String>.from(rawFeatures);
+    if (features.isEmpty) {
+      if (projLimit != null) {
+        features.add('Up to $projLimit active projects');
+      } else {
+        features.add('Unlimited active projects & tasks');
+      }
+
+      if (aiLimit != null) {
+        features.add('$aiLimit AI Copilot requests / month');
+      } else {
+        features.add('Unlimited AI Copilot & Planning requests');
+      }
+
+      if (storageMb > 0) {
+        features.add('$storageMb MB secure cloud storage');
+      } else {
+        features.add('Unlimited cloud document storage');
+      }
+
+      features.add('Two-way Google Calendar synchronization');
+      features.add('Personal work rhythm & Kbias learning');
+    }
+
+    final cycle = durationDays != null && durationDays >= 360
+        ? 'year'
+        : durationDays != null && durationDays >= 28
+            ? 'month'
+            : json['billingCycle']?.toString() ?? 'month';
+
     return SubscriptionPlanItem(
       id: json['id']?.toString() ?? '',
-      code: json['code'] ?? '',
-      name: json['name'] ?? '',
-      priceVnd: (json['price'] as num?)?.toInt() ?? json['priceVnd'] ?? 0,
-      billingCycle: json['billingCycle'] ?? 'month',
-      description: json['description'] ?? '',
-      features: (json['features'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      isPopular: json['isPopular'] ?? false,
+      code: json['code']?.toString() ?? '',
+      name: name,
+      priceVnd: price,
+      billingCycle: cycle,
+      description: json['description']?.toString() ??
+          (price == 0
+              ? 'Starter plan for personal schedule and workflow management.'
+              : 'Maximize AI-driven schedule optimization and deep work planning.'),
+      features: features,
+      isPopular: isPopular,
+      durationDays: durationDays,
+      aiCallLimit: aiLimit,
+      storageLimitMb: storageMb,
+      projectLimit: projLimit,
+      isActive: json['isActive'] as bool? ?? true,
     );
   }
 }
@@ -119,4 +185,56 @@ class CheckoutResultModel {
       reused: json['reused'] as bool? ?? false,
     );
   }
+}
+
+class PaymentSyncResultModel {
+  final String id;
+  final String userId;
+  final String planId;
+  final int orderCode;
+  final String gateway;
+  final int amount;
+  final String status;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
+  final DateTime? paidAt;
+
+  PaymentSyncResultModel({
+    required this.id,
+    required this.userId,
+    required this.planId,
+    required this.orderCode,
+    required this.gateway,
+    required this.amount,
+    required this.status,
+    this.createdAt,
+    this.expiresAt,
+    this.paidAt,
+  });
+
+  factory PaymentSyncResultModel.fromJson(Map<String, dynamic> json) {
+    return PaymentSyncResultModel(
+      id: json['id']?.toString() ?? '',
+      userId: json['userId']?.toString() ?? '',
+      planId: json['planId']?.toString() ?? '',
+      orderCode: (json['orderCode'] as num?)?.toInt() ?? 0,
+      gateway: json['gateway']?.toString() ?? 'PayOS',
+      amount: (json['amount'] as num?)?.toInt() ?? 0,
+      status: json['status']?.toString() ?? 'Pending',
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+      expiresAt: json['expiresAt'] != null
+          ? DateTime.tryParse(json['expiresAt'] as String)
+          : null,
+      paidAt: json['paidAt'] != null
+          ? DateTime.tryParse(json['paidAt'] as String)
+          : null,
+    );
+  }
+
+  bool get isSucceeded => status.toLowerCase() == 'succeeded';
+  bool get isPending => status.toLowerCase() == 'pending';
+  bool get isCancelled => status.toLowerCase() == 'cancelled';
+  bool get isExpired => status.toLowerCase() == 'expired';
 }
