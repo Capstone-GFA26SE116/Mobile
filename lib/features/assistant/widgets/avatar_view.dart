@@ -34,17 +34,25 @@ class AvatarView extends StatefulWidget {
   final AvatarController controller;
   final VoidCallback? onReady;
 
-  const AvatarView({super.key, required this.controller, this.onReady});
+  /// Local asset server port. Two avatars on screen at once need two ports.
+  final int port;
+
+  static const int defaultPort = 8080;
+
+  const AvatarView({
+    super.key,
+    required this.controller,
+    this.onReady,
+    this.port = defaultPort,
+  });
 
   @override
   State<AvatarView> createState() => _AvatarViewState();
 }
 
 class _AvatarViewState extends State<AvatarView> {
-  static const int _port = 8080;
-
-  final InAppLocalhostServer _server = InAppLocalhostServer(
-    port: _port,
+  late final InAppLocalhostServer _server = InAppLocalhostServer(
+    port: widget.port,
     documentRoot: 'assets/avatar',
   );
 
@@ -99,7 +107,7 @@ class _AvatarViewState extends State<AvatarView> {
       children: [
         InAppWebView(
           initialUrlRequest: URLRequest(
-            url: WebUri('http://localhost:$_port/index.html'),
+            url: WebUri('http://localhost:${widget.port}/index.html'),
           ),
           initialSettings: InAppWebViewSettings(
             transparentBackground: true,

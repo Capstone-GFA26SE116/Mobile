@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../logic/focus_session_controller.dart';
+import '../widgets/focus_companion_view.dart';
 import '../widgets/focus_stop_bottom_sheet.dart';
 
 class FocusScreen extends StatefulWidget {
@@ -12,6 +13,12 @@ class FocusScreen extends StatefulWidget {
 
 class _FocusScreenState extends State<FocusScreen> {
   final FocusSessionController _controller = FocusSessionController();
+
+  /// The 3D companion; kept while the app runs, so hiding it once is enough.
+  static bool _companionOn = true;
+
+  /// Below this screen height the companion would push the buttons off screen.
+  static const double _companionMinHeight = 780;
   bool _isPlayingMusic = false;
   String _selectedTrack = 'Alpha Waves (Deep Work)';
 
@@ -37,6 +44,8 @@ class _FocusScreenState extends State<FocusScreen> {
         }
 
         final isOverrun = _controller.isOverrun;
+        final roomForCompanion =
+            MediaQuery.sizeOf(context).height >= _companionMinHeight;
         final accentColor =
             isOverrun ? const Color(0xFFFF6B6B) : AppColors.primary;
         final title = _controller.currentSession?.taskTitle ?? 'Focus Session';
@@ -62,6 +71,16 @@ class _FocusScreenState extends State<FocusScreen> {
               ),
             ),
             actions: [
+              if (roomForCompanion)
+                IconButton(
+                  tooltip: _companionOn ? 'Hide companion' : 'Show companion',
+                  icon: Icon(
+                    _companionOn ? Icons.face : Icons.face_retouching_off,
+                    color: AppColors.textMuted,
+                    size: 20,
+                  ),
+                  onPressed: () => setState(() => _companionOn = !_companionOn),
+                ),
               IconButton(
                 icon: const Icon(Icons.info_outline,
                     color: AppColors.textMuted, size: 20),
@@ -139,6 +158,15 @@ class _FocusScreenState extends State<FocusScreen> {
                         color: AppColors.textMuted,
                         fontSize: 13,
                       ),
+                    ),
+                  ],
+
+                  if (_companionOn && roomForCompanion) ...[
+                    const SizedBox(height: 16),
+                    FocusCompanionView(
+                      session: _controller,
+                      elapsedSeconds: () => _controller.elapsedSeconds,
+                      plannedMinutes: () => _controller.plannedMinutes,
                     ),
                   ],
 
