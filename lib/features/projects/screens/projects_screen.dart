@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../data/project_repository.dart';
 import '../models/project_models.dart';
+import 'clients_screen.dart';
+import 'create_project_dialog.dart';
 import 'project_detail_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
@@ -38,6 +40,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleCreateProject() async {
+    final result = await showDialog<ProjectModel>(
+      context: context,
+      builder: (_) => const ProjectFormDialog(),
+    );
+
+    if (result != null) {
+      _loadProjects();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Project "${result.name}" created successfully.'),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -157,21 +179,65 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           ),
                         ],
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.surfaceBorder),
-                        ),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.refresh,
-                            size: 20,
-                            color: AppColors.primary,
+                      Row(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.surfaceBorder),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.people_outline,
+                                size: 20,
+                                color: AppColors.textPrimary,
+                              ),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) => const ClientsScreen()),
+                                );
+                              },
+                              tooltip: 'Clients & Accounts',
+                            ),
                           ),
-                          onPressed: _loadProjects,
-                          tooltip: 'Refresh projects',
-                        ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: AppColors.primary.withValues(alpha: 0.4)),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.add,
+                                size: 20,
+                                color: AppColors.primary,
+                              ),
+                              onPressed: _handleCreateProject,
+                              tooltip: 'Create project',
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.surfaceBorder),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.refresh,
+                                size: 20,
+                                color: AppColors.textMuted,
+                              ),
+                              onPressed: _loadProjects,
+                              tooltip: 'Refresh projects',
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
