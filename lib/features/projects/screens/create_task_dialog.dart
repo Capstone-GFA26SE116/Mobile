@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../onboarding/data/onboarding_repository.dart';
 import '../../onboarding/models/onboarding_model.dart';
+import '../data/estimation_coach_repository.dart';
 import '../data/project_repository.dart';
+import '../logic/estimation_coach.dart';
 import '../models/project_models.dart';
+import '../widgets/estimation_coach_hint.dart';
 import 'milestone_form_dialog.dart';
 
 class CreateTaskDialog extends StatefulWidget {
@@ -49,9 +52,14 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
 
   bool _isLoading = false;
 
+  /// Estimation coach: learned habit per work domain; empty until loaded or on error.
+  Map<String, DomainBias> _habits = {};
+
   @override
   void initState() {
     super.initState();
+    _minutesController.addListener(_onMinutesChanged);
+    _loadHabits();
     if (widget.initialMilestones != null && widget.initialMilestones!.isNotEmpty) {
       _milestones = List.from(widget.initialMilestones!);
       _selectedMilestoneId = _milestones.first.id;
@@ -68,6 +76,15 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
     _descController.dispose();
     _minutesController.dispose();
     super.dispose();
+  }
+
+  void _onMinutesChanged() {
+    if (_habits.isNotEmpty) setState(() {});
+  }
+
+  Future<void> _loadHabits() async {
+    final habits = await EstimationCoachRepository.create().habits();
+    if (mounted) setState(() => _habits = habits);
   }
 
   Future<void> _loadMilestones() async {
@@ -466,6 +483,12 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                       if (n == null || n <= 0) return 'Duration must be greater than 0';
                       return null;
                     },
+                  ),
+                  EstimationCoachHint(
+                    text: EstimationCoach.hint(
+                      _habits[_selectedDomainId],
+                      int.tryParse(_minutesController.text.trim()),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Container(
