@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
 
+import '../../schedule/models/overrun_models.dart';
 import '../data/assistant_repository.dart';
+import '../data/command_repository.dart';
 import '../models/assistant_turn.dart';
 import '../widgets/avatar_view.dart';
 import 'assistant_turn.dart';
+import 'intent_router.dart';
 
 enum AssistantPhase { idle, listening, thinking, speaking }
 
@@ -26,8 +29,17 @@ class AssistantController extends ChangeNotifier {
     AssistantErrorKind.server,
   };
 
+  /// FR-22c: tapping one of these is the same as saying it.
+  static const String yes = 'Có';
+  static const String no = 'Không';
+  static const String cancelled = 'Ok, mình không làm nữa.';
+
   final AssistantRepository _repository;
   final AssistantTurn _fallback;
+  final CommandRepository? _commandsOverride;
+  // Built on first use: needs the Backend config, which tests without commands never load.
+  late final CommandRepository _commands =
+      _commandsOverride ?? CommandRepository.create();
 
   /// Reads [text] aloud; returns false when the device has no Vietnamese voice.
   final Future<bool> Function(String text) _speak;
@@ -35,7 +47,9 @@ class AssistantController extends ChangeNotifier {
   AssistantController({
     required AssistantRepository repository,
     required this._speak,
+    CommandRepository? commands,
   }) : _repository = repository,
+       _commandsOverride = commands,
        _fallback = AssistantTurn(fetchBriefing: repository.getTodayBriefing);
 
   AssistantPhase _phase = AssistantPhase.idle;
@@ -50,6 +64,8 @@ class AssistantController extends ChangeNotifier {
   ({String text, List<TurnHistoryEntry> history})? _clarifying;
   // Bumped on every new question, so an answer that arrives after a newer one is dropped.
   int _generation = 0;
+  // FR-22c: the command waiting for "Có" / "Không" (kept while the mic is open).
+  ({TurnAction action, OverrunPlan? plan})? _pending;
 
   AssistantPhase get phase => _phase;
   String get heard => _heard;
@@ -61,6 +77,9 @@ class AssistantController extends ChangeNotifier {
   List<TurnOption> get options => _options;
   List<String> get suggestions => _suggestions;
   List<TurnHistoryEntry> get history => List.unmodifiable(_history);
+
+  /// A command waits for the user's yes / no.
+  bool get confirming => _pending != null;
 
   /// Mic pressed: drops the current answer, options and any pending clarify.
   void startListening() {
@@ -78,6 +97,18 @@ class AssistantController extends ChangeNotifier {
 
   /// A spoken sentence, a tapped suggestion, or the debug DEV_UTTERANCE.
   Future<void> ask(String sentence) async {
+    final pending = _pending;
+    if (pending != null) {
+      _pending = null; // answered now, or dropped by a new question
+      final answer = confirmation(sentence);
+      if (answer != null) {
+        final generation = ++_generation;
+        _clear();
+        _heard = sentence;
+        if (!answer) return _say(cancelled, AvatarEmotion.neutral);
+        return _run(pending.action, pending.plan, generation);
+      }
+    }
     final generation = ++_generation;
     _clear();
     _heard = sentence;
@@ -149,7 +180,12 @@ class AssistantController extends ChangeNotifier {
       }
       _options = turn.kind == TurnKind.clarify ? turn.options : const [];
       _suggestions = turn.suggestions;
-      await _say(turn.reply, turn.emotion);
+      final action = turn.action;
+      if (turn.kind == TurnKind.confirm && action != null) {
+        await _askToConfirm(turn.reply, action, generation);
+      } else {
+        await _say(turn.reply, turn.emotion);
+      }
     } on AssistantException catch (e) {
       if (generation != _generation) return;
       if (fallbackKinds.contains(e.kind) && AssistantTurn.needsBriefing(text)) {
@@ -161,6 +197,91 @@ class AssistantController extends ChangeNotifier {
         await _say(e.message, AvatarEmotion.sad);
       }
     }
+  }
+
+  /// FR-22c: keeps the action and asks "Có / Không". Adding time first shows what moves.
+  Future<void> _askToConfirm(
+    String reply,
+    TurnAction action,
+    int generation,
+  ) async {
+    OverrunPlan? plan;
+    var question = reply;
+    if (action.type == TurnActionType.extendTimer) {
+      try {
+        plan = await _commands.previewExtend(action);
+      } on CommandException catch (e) {
+        if (generation != _generation) return;
+        return _say(e.message, AvatarEmotion.sad);
+      }
+      if (generation != _generation) return;
+      question = '${plan.summary} Áp dụng nhé?';
+    }
+    _pending = (action: action, plan: plan);
+    _suggestions = const [yes, no];
+    await _say(question, AvatarEmotion.thinking);
+  }
+
+  Future<void> _run(
+    TurnAction action,
+    OverrunPlan? plan,
+    int generation,
+  ) async {
+    _phase = AssistantPhase.thinking;
+    _emotion = AvatarEmotion.thinking;
+    notifyListeners();
+    try {
+      final done = await _commands.run(action, plan: plan);
+      if (generation != _generation) return;
+      await _say(done, AvatarEmotion.happy);
+    } on CommandException catch (e) {
+      if (generation != _generation) return;
+      await _say(e.message, AvatarEmotion.sad);
+    }
+  }
+
+  static const List<String> _yesWords = [
+    'co',
+    'ok',
+    'oke',
+    'okay',
+    'dong y',
+    'duoc',
+    'chac chan',
+    'lam di',
+    'u',
+    'uh',
+    'vang',
+    'da',
+    'yes',
+    'yeah',
+    'yep',
+    'sure',
+    'go ahead',
+  ];
+  static const List<String> _noWords = [
+    'khong',
+    'thoi',
+    'huy',
+    'khoi',
+    'dung',
+    'chua',
+    'no',
+    'nope',
+    'cancel',
+    'not now',
+  ];
+
+  /// FR-22c: true for a short yes ("Có", "Ok đồng ý"), false for a no ("Thôi", "Không"),
+  /// null for anything else — that is a new question and drops the waiting command.
+  static bool? confirmation(String sentence) {
+    final words = IntentRouter.normalize(sentence);
+    if (words.isEmpty || words.split(' ').length > 4) return null;
+    bool has(List<String> list) =>
+        list.any((w) => RegExp('\\b$w\\b').hasMatch(words));
+    final saidNo = has(_noWords);
+    if (saidNo) return false; // "không đồng ý" is a no
+    return has(_yesWords) ? true : null;
   }
 
   Future<void> _say(String text, AvatarEmotion emotion) async {
