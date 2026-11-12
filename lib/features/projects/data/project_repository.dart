@@ -343,7 +343,7 @@ class ProjectRepository {
     }
   }
 
-  Future<ClientModel> createClient(String name, String? email, String? phone) async {
+  Future<ClientModel> createClient(String name, String? email, String? phone, [String? notes]) async {
     try {
       final response = await _apiClient.dio.post(
         ApiEndpoints.clients,
@@ -351,6 +351,7 @@ class ProjectRepository {
           'name': name,
           'contactEmail': email,
           'phone': phone,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
         },
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -360,6 +361,50 @@ class ProjectRepository {
     } on DioException catch (e) {
       final msg = ApiClient.extractErrorMessage(e);
       throw Exception('Failed to create client: $msg');
+    }
+  }
+
+  Future<ClientModel> updateClient(
+    String clientId,
+    String name,
+    String? email,
+    String? phone,
+    String? notes,
+  ) async {
+    try {
+      final response = await _apiClient.dio.put(
+        ApiEndpoints.clientDetail(clientId),
+        data: {
+          'name': name,
+          'contactEmail': email,
+          'phone': phone,
+          'notes': notes,
+        },
+      );
+      if (response.statusCode == 200 && response.data != null && response.data is Map) {
+        return ClientModel.fromJson(response.data as Map<String, dynamic>);
+      } else if (response.statusCode == 200 || response.statusCode == 204) {
+        return ClientModel(
+          id: clientId,
+          name: name,
+          contactEmail: email,
+          phone: phone,
+          notes: notes,
+        );
+      }
+      throw Exception('Failed to update client');
+    } on DioException catch (e) {
+      final msg = ApiClient.extractErrorMessage(e);
+      throw Exception('Failed to update client: $msg');
+    }
+  }
+
+  Future<void> deleteClient(String clientId) async {
+    try {
+      await _apiClient.dio.delete(ApiEndpoints.clientDetail(clientId));
+    } on DioException catch (e) {
+      final msg = ApiClient.extractErrorMessage(e);
+      throw Exception('Failed to delete client: $msg');
     }
   }
 }

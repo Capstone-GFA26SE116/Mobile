@@ -195,12 +195,16 @@ class ClientModel {
   final String name;
   final String? contactEmail;
   final String? phone;
+  final String? notes;
+  final DateTime? createdAt;
 
   ClientModel({
     required this.id,
     required this.name,
     this.contactEmail,
     this.phone,
+    this.notes,
+    this.createdAt,
   });
 
   factory ClientModel.fromJson(Map<String, dynamic> json) {
@@ -209,8 +213,19 @@ class ClientModel {
       name: json['name'] as String? ?? '',
       contactEmail: json['contactEmail'] as String? ?? json['email'] as String?,
       phone: json['phone'] as String?,
+      notes: json['notes'] as String?,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (contactEmail != null) 'contactEmail': contactEmail,
+        if (phone != null) 'phone': phone,
+        if (notes != null) 'notes': notes,
+      };
 }
 
 class TaskModel {

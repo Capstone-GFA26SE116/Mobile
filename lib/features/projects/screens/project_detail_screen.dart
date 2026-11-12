@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../onboarding/data/onboarding_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project_models.dart';
+import 'clients_screen.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final ProjectModel project;
@@ -376,19 +377,35 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                             ),
                             const Spacer(),
                             if (_project.clientName != null && _project.clientName!.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF141414),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: AppColors.surfaceBorder),
-                                ),
-                                child: Text(
-                                  _project.clientName!,
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
+                              InkWell(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                        builder: (_) => const ClientsScreen()),
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF141414),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: AppColors.surfaceBorder),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.person_outline, size: 12, color: AppColors.primary),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _project.clientName!,
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
