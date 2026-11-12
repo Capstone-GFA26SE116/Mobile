@@ -76,6 +76,7 @@ class ApiEndpoints {
   static const String aiSchedulePropose = '/schedule/propose';
   static const String aiScheduleOverrun = '/schedule/overrun'; // FR-16b
   static const String aiBriefingToday = '/briefing/today';
+  static const String aiAnalyticsOverview = '/analytics/overview';
   static const String aiAssistantTurn = '/assistant/turn';
   static String aiTaskChat(String taskId) => '/chat/tasks/$taskId';
   static String aiTaskChatMessages(String taskId) => '/chat/tasks/$taskId/messages';
