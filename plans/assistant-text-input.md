@@ -1,6 +1,6 @@
 # Trợ lý 3D — gõ chữ thay vì nói
 
-Trạng thái: Xong (chưa chạy trên máy thật) · Branch: `feature/assistant-text-input` · Cập nhật: 2026-11-18
+Trạng thái: Xong · Branch: `feature/assistant-text-input` · Cập nhật: 2026-11-18
 
 <!-- Hiếu giao 2026-11-18 ("thêm phần text cho con 3D"); Claude Code hiểu là ô gõ câu hỏi. Chỉ Mobile, không đổi AI / Backend. -->
 
@@ -36,3 +36,4 @@ Trạng thái: Xong (chưa chạy trên máy thật) · Branch: `feature/assista
 | Ngày | Thay đổi | Lý do |
 |---|---|---|
 | 2026-11-18 | Xong: `flutter test` 145 xanh (+5), `flutter analyze` phần trợ lý không có lỗi mới. Chưa chạy trên máy thật: máy dev không có emulator Android, chỉ có iPhone của Hiếu | Hiếu giao |
+| 2026-11-18 | Chạy trên emulator Pixel 8 (Android 14): ô hiện trên mic; gõ "What should I do today" → gửi, ô xoá, bàn phím ẩn, câu hiện như câu nói, nhân vật trả lời. Câu trả lời là 401 "Phiên đăng nhập hết hạn" vì emulator chưa đăng nhập (đường gọi AI giống hệt khi nói) | Hiếu cho chạy thử |
