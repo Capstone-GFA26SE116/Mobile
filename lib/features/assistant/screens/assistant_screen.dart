@@ -6,9 +6,10 @@ import '../logic/assistant_controller.dart';
 import '../logic/assistant_listener.dart';
 import '../logic/assistant_voice.dart';
 import '../widgets/assistant_prompts.dart';
+import '../widgets/assistant_text_input.dart';
 import '../widgets/avatar_view.dart';
 
-/// Voice assistant: hold the mic, speak, and the avatar answers aloud
+/// Voice assistant: hold the mic (or type), and the avatar answers aloud
 /// (MVP plan section 2, "Luồng một lần nói"); answers come from `/assistant/turn`
 /// through [AssistantController] (agent plan section 2).
 class AssistantScreen extends StatefulWidget {
@@ -109,6 +110,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
     await _assistant.ask(sentence);
   }
 
+  /// A typed question works like a spoken one (plans/assistant-text-input.md).
+  Future<void> _onTyped(String sentence) =>
+      _onPromptTapped(() => _assistant.ask(sentence));
+
   /// A tapped suggestion or option counts as a new question: stop speaking, then send it.
   Future<void> _onPromptTapped(Future<void> Function() send) async {
     _turn++;
@@ -184,6 +189,10 @@ class _AssistantScreenState extends State<AssistantScreen> {
               child: AvatarView(controller: _avatar, onReady: _onAvatarReady),
             ),
             _buildConversation(),
+            AssistantTextInput(
+              enabled: _avatarReady && !_listening && !_holding,
+              onSend: _onTyped,
+            ),
             _buildMicButton(),
           ],
         ),
