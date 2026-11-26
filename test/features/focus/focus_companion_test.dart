@@ -119,7 +119,21 @@ void main() {
     await tester.pump(const Duration(seconds: 4)); // the "speaking" timer ends
   });
 
-  test('the companion avatar does not share the assistant port', () {
-    expect(FocusCompanionView.avatarPort, isNot(AvatarView.defaultPort));
+  testWidgets('the real orb runs next to the timer', (tester) async {
+    final session = _Session();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FocusCompanionView(
+            session: session,
+            elapsedSeconds: () => session.elapsed,
+            plannedMinutes: () => 40,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(AvatarView), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4)); // the "speaking" timer ends
   });
 }
