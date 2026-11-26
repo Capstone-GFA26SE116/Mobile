@@ -70,6 +70,11 @@ class CommandRepository {
             ApiEndpoints.approveProposal(action.proposalId!),
           );
           return 'Đã duyệt lịch đề xuất. Các khung giờ đã lên lịch của bạn.';
+        case TurnActionType.insertBlock ||
+            TurnActionType.postpone ||
+            TurnActionType.catchUp:
+          // FR-22d runs through AssistantController with ReshuffleRepository.
+          throw const CommandException('Mình chưa có đề xuất để áp dụng.');
         case TurnActionType.extendTimer:
           if (plan == null) {
             throw const CommandException('Mình chưa có đề xuất để áp dụng.');
@@ -104,7 +109,10 @@ class CommandRepository {
         'Mình chưa dừng bấm giờ được, bạn thử lại nhé.',
       TurnActionType.approveProposal =>
         'Mình chưa duyệt được lịch này, bạn xem trên màn Lịch nhé.',
-      TurnActionType.extendTimer =>
+      TurnActionType.extendTimer ||
+      TurnActionType.insertBlock ||
+      TurnActionType.postpone ||
+      TurnActionType.catchUp =>
         'Mình chưa cập nhật được lịch, bạn thử lại sau nhé.',
     };
   }

@@ -1,3 +1,4 @@
+import '../../schedule/models/reshuffle_models.dart';
 import '../widgets/avatar_view.dart';
 
 /// `POST /assistant/turn` response (FR-22 section 1, `Turn`).
@@ -34,17 +35,25 @@ class Turn {
   });
 
   /// Throws [FormatException] when `kind` or `reply` is missing or unknown.
+  /// A confirm turn whose action this app does not know yet is read as a plain
+  /// answer (the reply is still said), so a newer AI service never breaks the app.
   factory Turn.fromJson(Map<String, dynamic> json) {
-    final kind = TurnKind.values.asNameMap()[json['kind']];
+    var kind = TurnKind.values.asNameMap()[json['kind']];
     final reply = (json['reply'] as String? ?? '').trim();
     if (kind == null || reply.isEmpty) {
       throw FormatException('Unexpected turn: kind=${json['kind']}');
     }
     final options = json['options'] as List<dynamic>? ?? const [];
     final suggestions = json['suggestions'] as List<dynamic>? ?? const [];
-    final action = json['action'] is Map<String, dynamic>
-        ? TurnAction.fromJson(json['action'] as Map<String, dynamic>)
-        : null;
+    TurnAction? action;
+    if (json['action'] is Map<String, dynamic>) {
+      try {
+        action = TurnAction.fromJson(json['action'] as Map<String, dynamic>);
+      } on UnknownActionException {
+        action = null;
+        kind = TurnKind.answer;
+      }
+    }
     if (kind == TurnKind.confirm && action == null) {
       throw const FormatException('A confirm turn without an action');
     }
@@ -72,8 +81,22 @@ class Turn {
       AvatarEmotion.values.asNameMap()[name] ?? AvatarEmotion.neutral;
 }
 
-/// FR-22c: the 4 kinds of action the app may run on the Backend.
-enum TurnActionType { startTimer, stopTimer, extendTimer, approveProposal }
+/// An action type this app does not know (a newer AI service).
+class UnknownActionException extends FormatException {
+  const UnknownActionException(super.message);
+}
+
+/// FR-22c: the kinds of action the app may run on the Backend; FR-22d adds the
+/// three schedule changes, each with the proposal to show (`preview`).
+enum TurnActionType {
+  startTimer,
+  stopTimer,
+  extendTimer,
+  approveProposal,
+  insertBlock,
+  postpone,
+  catchUp,
+}
 
 /// What a `confirm` turn asks the user to approve. The AI service never runs it.
 class TurnAction {
@@ -82,6 +105,9 @@ class TurnAction {
     'stop_timer': TurnActionType.stopTimer,
     'extend_timer': TurnActionType.extendTimer,
     'approve_proposal': TurnActionType.approveProposal,
+    'insert_block': TurnActionType.insertBlock,
+    'postpone': TurnActionType.postpone,
+    'catch_up': TurnActionType.catchUp,
   };
 
   final TurnActionType type;
@@ -95,6 +121,11 @@ class TurnAction {
   final int? minutes;
   final String? proposalId;
 
+  /// FR-22d: the proposal of an insertBlock / postpone / catchUp action.
+  final InsertPreview? insert;
+  final PostponePreview? postponed;
+  final CatchUpPreview? catchUp;
+
   const TurnAction({
     required this.type,
     this.taskId,
@@ -104,6 +135,9 @@ class TurnAction {
     this.stopReason,
     this.minutes,
     this.proposalId,
+    this.insert,
+    this.postponed,
+    this.catchUp,
   });
 
   bool get finishes => stopReason == 'Completed';
@@ -111,7 +145,10 @@ class TurnAction {
   /// Throws [FormatException] for an unknown type or a missing id the action needs.
   factory TurnAction.fromJson(Map<String, dynamic> json) {
     final type = _types[json['type']];
-    if (type == null) throw FormatException('Unknown action: ${json['type']}');
+    if (type == null) {
+      throw UnknownActionException('Unknown action: ${json['type']}');
+    }
+    final preview = json['preview'] as Map<String, dynamic>?;
     final action = TurnAction(
       type: type,
       taskId: json['task_id'] as String?,
@@ -121,6 +158,15 @@ class TurnAction {
       stopReason: json['stop_reason'] as String?,
       minutes: json['minutes'] as int?,
       proposalId: json['proposal_id'] as String?,
+      insert: type == TurnActionType.insertBlock && preview != null
+          ? InsertPreview.fromJson(preview)
+          : null,
+      postponed: type == TurnActionType.postpone && preview != null
+          ? PostponePreview.fromJson(preview)
+          : null,
+      catchUp: type == TurnActionType.catchUp && preview != null
+          ? CatchUpPreview.fromJson(preview)
+          : null,
     );
     final complete = switch (type) {
       TurnActionType.startTimer => action.taskId != null,
@@ -129,6 +175,9 @@ class TurnAction {
       TurnActionType.extendTimer =>
         action.slotId != null && action.minutes != null,
       TurnActionType.approveProposal => action.proposalId != null,
+      TurnActionType.insertBlock => action.insert != null,
+      TurnActionType.postpone => action.postponed?.move != null,
+      TurnActionType.catchUp => action.catchUp?.moves.isNotEmpty ?? false,
     };
     if (!complete) throw FormatException('Incomplete action: ${json['type']}');
     return action;

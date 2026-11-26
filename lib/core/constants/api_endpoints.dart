@@ -75,6 +75,9 @@ class ApiEndpoints {
   // AI Service endpoints (Port 8000)
   static const String aiSchedulePropose = '/schedule/propose';
   static const String aiScheduleOverrun = '/schedule/overrun'; // FR-16b
+  static const String aiInsertBlock = '/schedule/insert-block'; // FR-22d
+  static const String aiPostpone = '/schedule/postpone'; // FR-22d
+  static const String aiCatchUp = '/schedule/catch-up'; // FR-22d
   static const String aiBriefingToday = '/briefing/today';
   static const String aiAnalyticsOverview = '/analytics/overview';
   static const String aiAssistantTurn = '/assistant/turn';

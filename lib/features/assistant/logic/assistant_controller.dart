@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+import '../../schedule/data/reshuffle_repository.dart';
 import '../../schedule/models/overrun_models.dart';
+import '../../schedule/models/reshuffle_models.dart';
 import '../data/assistant_repository.dart';
 import '../data/command_repository.dart';
 import '../models/assistant_turn.dart';
@@ -34,12 +36,24 @@ class AssistantController extends ChangeNotifier {
   static const String no = 'Không';
   static const String cancelled = 'Ok, mình không làm nữa.';
 
+  /// FR-22d (M18): tapping or saying this puts the last schedule change back.
+  static const String undoWord = 'Hoàn tác';
+  static const Set<TurnActionType> reshuffleTypes = {
+    TurnActionType.insertBlock,
+    TurnActionType.postpone,
+    TurnActionType.catchUp,
+  };
+
   final AssistantRepository _repository;
   final AssistantTurn _fallback;
   final CommandRepository? _commandsOverride;
   // Built on first use: needs the Backend config, which tests without commands never load.
   late final CommandRepository _commands =
       _commandsOverride ?? CommandRepository.create();
+  final ReshuffleRepository? _reshuffleOverride;
+  late final ReshuffleRepository _reshuffle =
+      _reshuffleOverride ?? ReshuffleRepository.create();
+  final DateTime Function() _now;
 
   /// Reads [text] aloud; returns false when the device has no Vietnamese voice.
   final Future<bool> Function(String text) _speak;
@@ -48,8 +62,12 @@ class AssistantController extends ChangeNotifier {
     required AssistantRepository repository,
     required this._speak,
     CommandRepository? commands,
+    ReshuffleRepository? reshuffle,
+    DateTime Function()? now,
   }) : _repository = repository,
        _commandsOverride = commands,
+       _reshuffleOverride = reshuffle,
+       _now = now ?? DateTime.now,
        _fallback = AssistantTurn(fetchBriefing: repository.getTodayBriefing);
 
   AssistantPhase _phase = AssistantPhase.idle;
@@ -67,6 +85,13 @@ class AssistantController extends ChangeNotifier {
   // FR-22c: the command waiting for "Có" / "Không" (kept while the mic is open).
   ({TurnAction action, OverrunPlan? plan})? _pending;
 
+  // FR-22d: where the urgent task goes when the AI had no default, and the last change.
+  List<PickItem> _projects = const [];
+  List<PickItem> _domains = const [];
+  String? _projectId;
+  String? _domainId;
+  ReshuffleUndo? _undo;
+
   AssistantPhase get phase => _phase;
   String get heard => _heard;
   String? get reply => _reply;
@@ -80,6 +105,67 @@ class AssistantController extends ChangeNotifier {
 
   /// A command waits for the user's yes / no.
   bool get confirming => _pending != null;
+
+  /// FR-22d: the schedule change waiting for the user (shown as a card), or null.
+  TurnAction? get proposal {
+    final action = _pending?.action;
+    return action != null && reshuffleTypes.contains(action.type)
+        ? action
+        : null;
+  }
+
+  /// Projects / kinds of work to pick from; empty when the AI already chose one.
+  List<PickItem> get projects => _projects;
+  List<PickItem> get domains => _domains;
+  String? get projectId => _projectId;
+  String? get domainId => _domainId;
+
+  /// The last schedule change can still be put back (5 minutes, M18).
+  bool get canUndo => _undo?.isOpenAt(_now()) ?? false;
+
+  void selectProject(String id) {
+    _projectId = id;
+    notifyListeners();
+  }
+
+  void selectDomain(String id) {
+    _domainId = id;
+    notifyListeners();
+  }
+
+  /// A button on the proposal card: null = agree; or one of the M4 choices.
+  Future<void> pick(BlockChoice? choice) async {
+    final action = proposal;
+    if (action == null) return;
+    _pending = null;
+    final generation = ++_generation;
+    _clear();
+    if (choice == BlockChoice.cancel) {
+      return _say(cancelled, AvatarEmotion.neutral);
+    }
+    await _resolveReshuffle(action, choice, generation);
+  }
+
+  /// M18: puts the last schedule change back.
+  Future<void> undoLast() async {
+    final undo = _undo;
+    if (undo == null || !undo.isOpenAt(_now())) return;
+    _undo = null;
+    _pending = null;
+    final generation = ++_generation;
+    _clear();
+    _phase = AssistantPhase.thinking;
+    _emotion = AvatarEmotion.thinking;
+    notifyListeners();
+    final failed = await _reshuffle.undo(undo);
+    if (generation != _generation) return;
+    await _say(
+      failed == 0
+          ? 'Đã hoàn tác, lịch trở lại như cũ.'
+          : 'Đã hoàn tác một phần, bạn xem lại màn Lịch nhé.',
+      failed == 0 ? AvatarEmotion.happy : AvatarEmotion.sad,
+    );
+  }
 
   /// Mic pressed: drops the current answer, options and any pending clarify.
   void startListening() {
@@ -97,6 +183,7 @@ class AssistantController extends ChangeNotifier {
 
   /// A spoken sentence, a tapped suggestion, or the debug DEV_UTTERANCE.
   Future<void> ask(String sentence) async {
+    if (canUndo && _isUndo(sentence)) return undoLast();
     final pending = _pending;
     if (pending != null) {
       _pending = null; // answered now, or dropped by a new question
@@ -106,6 +193,9 @@ class AssistantController extends ChangeNotifier {
         _clear();
         _heard = sentence;
         if (!answer) return _say(cancelled, AvatarEmotion.neutral);
+        if (reshuffleTypes.contains(pending.action.type)) {
+          return _resolveReshuffle(pending.action, null, generation);
+        }
         return _run(pending.action, pending.plan, generation);
       }
     }
@@ -205,6 +295,9 @@ class AssistantController extends ChangeNotifier {
     TurnAction action,
     int generation,
   ) async {
+    if (reshuffleTypes.contains(action.type)) {
+      return _askReshuffle(reply, action, generation);
+    }
     OverrunPlan? plan;
     var question = reply;
     if (action.type == TurnActionType.extendTimer) {
@@ -238,6 +331,169 @@ class AssistantController extends ChangeNotifier {
       if (generation != _generation) return;
       await _say(e.message, AvatarEmotion.sad);
     }
+  }
+
+  // --- FR-22d: schedule changes ---
+
+  /// Shows the proposal card and asks. An urgent task with no default project or kind
+  /// of work first loads the lists to pick from (a sensible one is preselected).
+  Future<void> _askReshuffle(
+    String reply,
+    TurnAction action,
+    int generation,
+  ) async {
+    final insert = action.insert;
+    if (insert != null) {
+      try {
+        _projectId = insert.projectId;
+        _domainId = insert.domainId;
+        _projects = insert.projectId == null
+            ? await _reshuffle.projects()
+            : const [];
+        _domains = insert.domainId == null
+            ? await _reshuffle.domains()
+            : const [];
+      } catch (_) {
+        if (generation != _generation) return;
+        return _say(
+          'Mình chưa tải được danh sách dự án, bạn thử lại sau nhé.',
+          AvatarEmotion.sad,
+        );
+      }
+      if (generation != _generation) return;
+      _projectId ??= _defaultProject(_projects);
+      _domainId ??= _domains.isEmpty ? null : _domains.first.id;
+      if (_projectId == null || _domainId == null) {
+        return _say(
+          'Bạn cần có ít nhất một dự án để thêm việc gấp.',
+          AvatarEmotion.sad,
+        );
+      }
+    }
+    _pending = (action: action, plan: null);
+    // With a clash the card shows the choices; "Có" then means the suggestion.
+    _suggestions = insert != null && insert.hasConflicts
+        ? const []
+        : const [yes, no];
+    await _say(reply, AvatarEmotion.thinking);
+  }
+
+  static String? _defaultProject(List<PickItem> projects) {
+    if (projects.isEmpty) return null;
+    for (final p in projects) {
+      final name = IntentRouter.normalize(p.name);
+      if (name.contains('ca nhan') || name.contains('personal')) return p.id;
+    }
+    return projects.first.id;
+  }
+
+  Future<void> _resolveReshuffle(
+    TurnAction action,
+    BlockChoice? choice,
+    int generation,
+  ) async {
+    final insert = action.insert;
+    if (insert != null) {
+      final picked =
+          choice ?? (insert.hasConflicts ? insert.recommendation : null);
+      if (insert.hasConflicts && picked == null) {
+        _pending = (action: action, plan: null);
+        return _say(
+          'Việc trùng giờ đang được làm dở, bạn chọn Giờ khác hoặc Hủy nhé.',
+          AvatarEmotion.neutral,
+        );
+      }
+      if (picked == BlockChoice.otherTime && insert.otherTime != null) {
+        return _tryOtherTime(insert, generation);
+      }
+      return _apply(generation, () async {
+        final result = await _reshuffle.applyInsert(
+          insert,
+          overwrite: picked == BlockChoice.overwrite,
+          projectId: _projectId ?? insert.projectId!,
+          domainId: _domainId ?? insert.domainId!,
+        );
+        final moved = result.undo.slots.length;
+        final skipped = result.undo.skippedTasks.length;
+        return (
+          undo: result.undo,
+          failed: result.failed,
+          done:
+              'Đã thêm ${insert.title}'
+              '${moved > 0 ? ' và dời $moved việc' : ''}'
+              '${skipped > 0 ? ', bỏ $skipped việc trùng' : ''}.',
+        );
+      });
+    }
+    final moves = action.postponed?.move != null
+        ? [action.postponed!.move!]
+        : action.catchUp?.moves ?? const <ReshuffleMove>[];
+    return _apply(generation, () async {
+      final result = await _reshuffle.applyMoves(moves);
+      final done = action.type == TurnActionType.postpone
+          ? 'Đã dời ${action.postponed!.taskTitle} sang ${_clock(moves.first.newStart)}.'
+          : 'Đã xếp lại ${result.undo.slots.length} việc bị lỡ.';
+      return (undo: result.undo, failed: result.failed, done: done);
+    });
+  }
+
+  /// M4 "another time": asks the AI again for the same work at the suggested time.
+  Future<void> _tryOtherTime(InsertPreview insert, int generation) async {
+    _phase = AssistantPhase.thinking;
+    _emotion = AvatarEmotion.thinking;
+    notifyListeners();
+    try {
+      final other = insert.otherTime!;
+      final preview = await _reshuffle.previewInsert(
+        insert.title,
+        other.start,
+        other.end,
+      );
+      if (generation != _generation) return;
+      final action = TurnAction(
+        type: TurnActionType.insertBlock,
+        insert: preview,
+      );
+      await _askReshuffle(preview.summary, action, generation);
+    } on ReshuffleException catch (e) {
+      if (generation != _generation) return;
+      await _say(e.message, AvatarEmotion.sad);
+    }
+  }
+
+  Future<void> _apply(
+    int generation,
+    Future<({ReshuffleUndo undo, int failed, String done})> Function() run,
+  ) async {
+    _phase = AssistantPhase.thinking;
+    _emotion = AvatarEmotion.thinking;
+    notifyListeners();
+    try {
+      final result = await run();
+      if (generation != _generation) return;
+      _undo = result.undo.isEmpty ? null : result.undo;
+      final partly = result.failed > 0
+          ? ' Có ${result.failed} việc chưa cập nhật được, bạn xem lại màn Lịch nhé.'
+          : '';
+      _suggestions = _undo == null ? const [] : const [undoWord];
+      await _say(
+        '${result.done}$partly${_undo == null ? '' : ' Bấm Hoàn tác trong 5 phút nếu đổi ý.'}',
+        result.failed > 0 ? AvatarEmotion.neutral : AvatarEmotion.happy,
+      );
+    } on ReshuffleException catch (e) {
+      if (generation != _generation) return;
+      await _say(e.message, AvatarEmotion.sad);
+    }
+  }
+
+  static String _clock(DateTime t) {
+    final hm = '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
+    return '$hm ngày ${t.day}/${t.month}';
+  }
+
+  static bool _isUndo(String sentence) {
+    final words = IntentRouter.normalize(sentence);
+    return words.contains('hoan tac') || words.contains('undo');
   }
 
   static const List<String> _yesWords = [
