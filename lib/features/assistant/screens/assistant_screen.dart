@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../schedule/data/reshuffle_repository.dart';
 import '../data/assistant_repository.dart';
 import '../logic/assistant_controller.dart';
 import '../logic/assistant_listener.dart';
@@ -8,6 +9,7 @@ import '../logic/assistant_voice.dart';
 import '../widgets/assistant_prompts.dart';
 import '../widgets/assistant_text_input.dart';
 import '../widgets/avatar_view.dart';
+import '../widgets/reshuffle_card.dart';
 
 /// Voice assistant: hold the mic (or type), and the orb answers aloud
 /// (MVP plan section 2, "Luồng một lần nói"); answers come from `/assistant/turn`
@@ -23,11 +25,17 @@ class AssistantScreen extends StatefulWidget {
   /// Debug only (C4): cycles every emotion and the mouth once, for screenshots.
   final bool devTour;
 
+  /// Demo / tests only: stand-ins for the AI service and the Backend.
+  final AssistantRepository? repository;
+  final ReshuffleRepository? reshuffle;
+
   const AssistantScreen({
     super.key,
     this.devUtterance,
     this.devUtteranceGap = 2,
     this.devTour = false,
+    this.repository,
+    this.reshuffle,
   });
 
   @override
@@ -42,8 +50,9 @@ class _AssistantScreenState extends State<AssistantScreen> {
   final AssistantListener _listener = AssistantListener();
   // Created on first use: AssistantRepository reads AppConfig, which needs .env to be loaded.
   late final AssistantController _assistant = AssistantController(
-    repository: AssistantRepository(),
+    repository: widget.repository ?? AssistantRepository(),
     speak: _voice.speak,
+    reshuffle: widget.reshuffle,
   )..addListener(_onAssistantChanged);
 
   bool _avatarReady = false;
@@ -201,7 +210,20 @@ class _AssistantScreenState extends State<AssistantScreen> {
             Expanded(
               child: AvatarView(controller: _avatar, onReady: _onAvatarReady),
             ),
-            _buildConversation(),
+            // The conversation scrolls inside at most part of the screen; with an
+            // FR-22d card it takes more, so the buttons stay in view (orb shrinks).
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.sizeOf(context).height *
+                    (_assistant.proposal == null ? 0.4 : 0.62),
+              ),
+              child: SingleChildScrollView(
+                reverse:
+                    true, // keep the newest part (the card's buttons) in view
+                child: _buildConversation(),
+              ),
+            ),
             AssistantTextInput(
               enabled: _avatarReady && !_listening && !_holding,
               onSend: _onTyped,
@@ -256,6 +278,18 @@ class _AssistantScreenState extends State<AssistantScreen> {
                   fontSize: 15,
                 ),
               ),
+            ),
+          if (_assistant.proposal case final action?)
+            ReshuffleCard(
+              action: action,
+              projects: _assistant.projects,
+              domains: _assistant.domains,
+              projectId: _assistant.projectId,
+              domainId: _assistant.domainId,
+              onProject: _assistant.selectProject,
+              onDomain: _assistant.selectDomain,
+              onPick: (choice) =>
+                  _onPromptTapped(() => _assistant.pick(choice)),
             ),
           AssistantPrompts(
             options: _assistant.options,

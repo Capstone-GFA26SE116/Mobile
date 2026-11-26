@@ -51,6 +51,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     try {
       await _controller.markAsRead(item.id);
+      if (!mounted) return; // the user left the screen meanwhile
       // If notification has a scheduleSlotId, we can find its task or start directly
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -86,7 +87,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             tooltip: 'Mark all as read',
             onPressed: () async {
               await _controller.markAllAsRead();
-              if (mounted) {
+              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('All notifications marked as read.'),

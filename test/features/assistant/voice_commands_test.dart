@@ -100,7 +100,10 @@ void main() {
     });
 
     test('a confirm turn without a usable action is rejected', () {
-      expect(() => _confirm({'type': 'delete_task'}), throwsFormatException);
+      // An action this app does not know is read as a plain answer (newer AI service).
+      final unknown = _confirm({'type': 'delete_task'});
+      expect(unknown.kind, TurnKind.answer);
+      expect(unknown.action, isNull);
       expect(() => _confirm({'type': 'stop_timer'}), throwsFormatException); // no session
       expect(
         () => Turn.fromJson({'kind': 'confirm', 'reply': 'x', 'emotion': 'neutral'}),
