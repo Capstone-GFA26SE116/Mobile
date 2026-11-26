@@ -6,14 +6,14 @@ import '../../../core/constants/app_colors.dart';
 import '../../assistant/widgets/avatar_view.dart';
 import '../logic/focus_companion.dart';
 
-/// The 3D character next to the focus timer, with one short line at each point of the
+/// The assistant orb next to the focus timer, with one short line at each point of the
 /// session ([FocusCompanion]). Text only: the session stays quiet.
 class FocusCompanionView extends StatefulWidget {
   final Listenable session;
   final int Function() elapsedSeconds;
   final int Function() plannedMinutes;
 
-  /// Tests pass a plain box: the WebView does not run in widget tests.
+  /// Tests may pass a plain box instead of the orb.
   final Widget Function(AvatarController controller)? avatarBuilder;
 
   const FocusCompanionView({
@@ -23,9 +23,6 @@ class FocusCompanionView extends StatefulWidget {
     required this.plannedMinutes,
     this.avatarBuilder,
   });
-
-  /// Not the assistant's port: both can be on the navigation stack.
-  static const int avatarPort = 8081;
 
   @override
   State<FocusCompanionView> createState() => _FocusCompanionViewState();
@@ -48,6 +45,7 @@ class _FocusCompanionViewState extends State<FocusCompanionView> {
   void dispose() {
     widget.session.removeListener(_check);
     _quiet?.cancel();
+    _avatar.dispose();
     super.dispose();
   }
 
@@ -84,7 +82,6 @@ class _FocusCompanionViewState extends State<FocusCompanionView> {
                 widget.avatarBuilder?.call(_avatar) ??
                 AvatarView(
                   controller: _avatar,
-                  port: FocusCompanionView.avatarPort,
                   onReady: () {
                     if (_cue != null) _show(_cue!);
                   },

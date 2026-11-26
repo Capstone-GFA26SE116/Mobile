@@ -9,7 +9,7 @@ import '../widgets/assistant_prompts.dart';
 import '../widgets/assistant_text_input.dart';
 import '../widgets/avatar_view.dart';
 
-/// Voice assistant: hold the mic (or type), and the avatar answers aloud
+/// Voice assistant: hold the mic (or type), and the orb answers aloud
 /// (MVP plan section 2, "Luồng một lần nói"); answers come from `/assistant/turn`
 /// through [AssistantController] (agent plan section 2).
 class AssistantScreen extends StatefulWidget {
@@ -59,10 +59,14 @@ class _AssistantScreenState extends State<AssistantScreen> {
     _listener.cancel();
     _voice.dispose();
     _assistant.dispose();
+    _avatar.dispose();
     super.dispose();
   }
 
   void _onAssistantChanged() {
+    // The orb shows listening and thinking too (plans/assistant-orb.md).
+    _avatar.setListening(_assistant.phase == AssistantPhase.listening);
+    _avatar.setThinking(_assistant.phase == AssistantPhase.thinking);
     final emotion = _assistant.emotion;
     if (emotion != _shownEmotion) {
       _shownEmotion = emotion;
@@ -161,6 +165,15 @@ class _AssistantScreenState extends State<AssistantScreen> {
       await Future.delayed(hold);
       if (!mounted) return;
     }
+    await _avatar.setEmotion(AvatarEmotion.neutral);
+    for (final step in ['listening', 'thinking']) {
+      debugPrint('[tour] $step');
+      await _avatar.setListening(step == 'listening');
+      await _avatar.setThinking(step == 'thinking');
+      await Future.delayed(hold);
+      if (!mounted) return;
+    }
+    await _avatar.setThinking(false);
     debugPrint('[tour] speaking');
     _avatar.setEmotion(AvatarEmotion.neutral);
     _avatar.setSpeaking(true);
