@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../dashboard/screens/dashboard_screen.dart';
 import '../../focus/logic/focus_session_controller.dart';
 import '../../focus/widgets/focus_timer_bar.dart';
+import '../../groups/screens/groups_screen.dart';
 import '../../notifications/logic/notification_controller.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../projects/screens/projects_screen.dart';
@@ -31,6 +32,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       ),
       const ScheduleScreen(),
       const ProjectsScreen(),
+      const GroupsScreen(),
       const ProfileScreen(),
     ];
   }
@@ -93,6 +95,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
                   icon: Icon(Icons.folder_outlined),
                   activeIcon: Icon(Icons.folder),
                   label: 'Projects',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.groups_outlined),
+                  activeIcon: Icon(Icons.groups),
+                  label: 'Groups',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person_outline),
